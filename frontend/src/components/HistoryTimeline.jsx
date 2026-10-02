@@ -38,6 +38,9 @@ export default function HistoryTimeline({ visits, onDelete, canDelete }) {
               <dl className="mt-2 grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
                 <div><dt className="inline text-muted">Treatment: </dt><dd className="inline break-words">{v.treatment}</dd></div>
                 <div><dt className="inline text-muted">Doctor: </dt><dd className="inline">{v.doctor_name}</dd></div>
+                <div className="sm:col-span-2 text-xs text-brand-800 bg-brand-50/70 rounded-md py-1 px-2 border border-brand-100 flex items-center gap-1.5 mt-1">
+                  <span>Hospital / Branch: <strong>{v.hospital_name || 'Hospital Network Care'}</strong></span>
+                </div>
                 {v.notes && <div className="sm:col-span-2"><dt className="inline text-muted">Notes: </dt><dd className="inline break-words">{v.notes}</dd></div>}
               </dl>
               <p className="mt-2 text-xs text-muted">next &rarr; {v.nextHistoryId ? `Visit ${v.position + 1}` : 'null (end of list)'}</p>

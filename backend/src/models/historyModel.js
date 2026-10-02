@@ -1,9 +1,12 @@
 const db = require('../config/db');
 
 const BASE = `
-  SELECT h.history_id, h.patient_id, h.doctor_id, d.name AS doctor_name, h.visit_date,
-         h.diagnosis, h.treatment, h.notes, h.created_at
-  FROM medical_history h JOIN doctors d ON d.doctor_id = h.doctor_id`;
+  SELECT h.history_id, h.patient_id, h.doctor_id, d.name AS doctor_name,
+         h.visit_date, h.diagnosis, h.treatment, h.notes, h.created_at,
+         COALESCE(hosp.name, 'Hospital Network Care') AS hospital_name
+  FROM medical_history h
+  JOIN doctors d ON d.doctor_id = h.doctor_id
+  LEFT JOIN hospitals hosp ON hosp.hospital_id = d.hospital_id`;
 
 exports.findByPatient = async (patientId) => (await db.query(`${BASE} WHERE h.patient_id=$1`, [patientId])).rows;
 exports.findById = async (id) => (await db.query(`${BASE} WHERE h.history_id=$1`, [id])).rows[0];

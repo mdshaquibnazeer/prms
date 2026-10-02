@@ -1,4 +1,5 @@
 const asyncHandler = require('../utils/asyncHandler');
+const AppError = require('../utils/AppError');
 const patientService = require('../services/patientService');
 const { validatePatient } = require('../utils/validators');
 
@@ -29,4 +30,11 @@ exports.update = asyncHandler(async (req, res) => {
 exports.remove = asyncHandler(async (req, res) => {
   await patientService.remove(req.params.id);
   res.json({ success: true, message: 'Patient deleted.' });
+});
+
+exports.transferHospital = asyncHandler(async (req, res) => {
+  const { hospital_id } = req.body;
+  if (!hospital_id) throw new AppError(400, 'Hospital ID is required.');
+  const patient = await patientService.transferHospital(req.params.id, hospital_id);
+  res.json({ success: true, message: 'Patient care transferred to hospital successfully.', data: patient });
 });

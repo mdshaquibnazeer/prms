@@ -62,6 +62,7 @@ router.get('/patients/next-id', authorize(...STAFF), patients.nextId);
 router.get('/patients/:id', authorize(...ALL), patients.get);
 router.post('/patients', authorize(...STAFF), patients.create);
 router.put('/patients/:id', authorize(...STAFF), patients.update);
+router.put('/patients/:id/transfer', authorize(...ALL), patients.transferHospital);
 router.delete('/patients/:id', authorize('admin', 'hospital'), patients.remove);
 
 // ---- Medical history ----

@@ -87,6 +87,7 @@ export const patientsApi = {
   nextId: () => api.get('/patients/next-id'),
   create: (p) => api.post('/patients', p),
   update: (id, p) => api.put(`/patients/${encodeURIComponent(id)}`, p),
+  transferHospital: (id, hospital_id) => api.put(`/patients/${encodeURIComponent(id)}/transfer`, { hospital_id }),
   remove: (id) => api.del(`/patients/${encodeURIComponent(id)}`),
   history: (id) => api.get(`/patients/${encodeURIComponent(id)}/history`),
   addHistory: (id, h) => api.post(`/patients/${encodeURIComponent(id)}/history`, h),

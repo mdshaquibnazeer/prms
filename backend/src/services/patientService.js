@@ -185,4 +185,11 @@ async function nextId() {
   return `P${max + 1}`;
 }
 
-module.exports = { refreshIndex, getIndexStats, list, getById, exists, create, update, remove, nextId, SORT_FIELDS };
+async function transferHospital(id, hospital_id) {
+  await getById(id);
+  await patientModel.updateHospital(String(id).toUpperCase(), hospital_id);
+  await refreshIndex();
+  return (await getById(id)).patient;
+}
+
+module.exports = { refreshIndex, getIndexStats, list, getById, exists, create, update, transferHospital, remove, nextId, SORT_FIELDS };

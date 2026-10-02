@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarPlus, ClipboardPlus, Pencil, Pill, CalendarDays } from 'lucide-react';
+import { ArrowLeft, CalendarPlus, ClipboardPlus, Pencil, Pill, CalendarDays, Building2, CheckCircle2 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { AsyncBoundary, EmptyState, ErrorState, LoadingBlock } from '../components/Feedback';
 import { PriorityBadge, StatusBadge } from '../components/Badges';
 import HistoryTimeline from '../components/HistoryTimeline';
 import ConfirmDialog from '../components/ConfirmDialog';
+import Modal from '../components/Modal';
 import { AppointmentFormModal, HistoryFormModal, PrescriptionFormModal } from '../components/RecordForms';
 import { useAsync } from '../hooks/useAsync';
-import { historyApi, patientsApi } from '../services/api';
+import { historyApi, patientsApi, hospitalsApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { can } from '../utils/permissions';
@@ -48,6 +49,19 @@ export default function PatientDetails() {
   const [modal, setModal] = useState(null); // 'appointment' | 'history' | 'rx'
   const [delVisit, setDelVisit] = useState(null);
 
+  // Hospital Transfer Modal State
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [hospitalsList, setHospitalsList] = useState([]);
+  const [targetHosp, setTargetHosp] = useState('');
+  const [transferBusy, setTransferBusy] = useState(false);
+
+  useEffect(() => {
+    hospitalsApi.listPublic().then((res) => {
+      setHospitalsList(res.data || []);
+      if (res.data?.length > 0) setTargetHosp(res.data[0].hospital_id);
+    });
+  }, []);
+
   if (patient.loading && !patient.data) return <LoadingBlock text="Loading patient..." rows={4} />;
   if (patient.error) return (
     <div className="card"><ErrorState message={patient.error} onRetry={patient.reload} /><div className="pb-6 text-center"><Link to="/patients" className="btn-secondary">Back to patients</Link></div></div>
@@ -59,12 +73,35 @@ export default function PatientDetails() {
     catch (err) { toast.error(err.message); setDelVisit(null); }
   };
 
+  const handleTransferSubmit = async (e) => {
+    e.preventDefault();
+    if (!targetHosp) return;
+    setTransferBusy(true);
+    try {
+      await patientsApi.transferHospital(p.patient_id, targetHosp);
+      toast.success('Patient care successfully transferred to new hospital!');
+      setShowTransferModal(false);
+      patient.reload({ silent: true });
+    } catch (err) {
+      toast.error(err.message || 'Hospital transfer failed.');
+    } finally {
+      setTransferBusy(false);
+    }
+  };
+
   return (
     <>
       <Link to="/patients" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden="true" />All patients</Link>
-      <PageHeader title={p.name} subtitle={`Patient ${p.patient_id}`}>
-        <button className="btn-secondary" onClick={() => navigate(`/patients/${p.patient_id}/edit`)}><Pencil className="h-4 w-4" aria-hidden="true" />Edit Patient</button>
-        <button className="btn-secondary" onClick={() => setModal('appointment')}><CalendarPlus className="h-4 w-4" aria-hidden="true" />New Appointment</button>
+      <PageHeader title={p.name} subtitle={`Patient ${p.patient_id} · ${p.hospital_name || 'Network Hospital'}`}>
+        <button className="btn-secondary" onClick={() => setShowTransferModal(true)}>
+          <Building2 className="h-4 w-4 text-brand-600" aria-hidden="true" />Transfer Hospital
+        </button>
+        <button className="btn-secondary" onClick={() => navigate(`/patients/${p.patient_id}/edit`)}>
+          <Pencil className="h-4 w-4" aria-hidden="true" />Edit Patient
+        </button>
+        <button className="btn-secondary" onClick={() => setModal('appointment')}>
+          <CalendarPlus className="h-4 w-4" aria-hidden="true" />New Appointment
+        </button>
         {clinical && <button className="btn-secondary" onClick={() => setModal('history')}><ClipboardPlus className="h-4 w-4" aria-hidden="true" />Add Medical History</button>}
         {clinical && <button className="btn-secondary" onClick={() => setModal('rx')}><Pill className="h-4 w-4" aria-hidden="true" />Add Prescription</button>}
       </PageHeader>
@@ -74,6 +111,7 @@ export default function PatientDetails() {
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Field label="Patient ID" value={p.patient_id} />
             <Field label="Name" value={p.name} />
+            <Field label="Primary Hospital" value={p.hospital_name} />
             <Field label="Age" value={`${p.age} years`} />
             <Field label="Gender" value={p.gender} />
             <Field label="Blood Group" value={p.blood_group} />
@@ -81,9 +119,10 @@ export default function PatientDetails() {
             <Field label="Email" value={p.email} />
             <Field label="Address" value={p.address} />
           </dl>
-          <p className="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
-            Loaded with <b>{patient.data.meta.lookup.algorithm}</b> ({patient.data.meta.lookup.complexity}).
-          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
+            <span>Loaded with <b>{patient.data.meta.lookup.algorithm}</b> ({patient.data.meta.lookup.complexity}).</span>
+            <span className="font-semibold text-brand-700">Cross-Hospital History Sharing: Active</span>
+          </div>
         </section>
 
         {clinical && (
@@ -130,6 +169,48 @@ export default function PatientDetails() {
           </Section>
         )}
       </div>
+
+      {/* HOSPITAL TRANSFER MODAL */}
+      {showTransferModal && (
+        <Modal
+          title="Transfer Hospital / Change Primary Care"
+          onClose={() => setShowTransferModal(false)}
+          footer={
+            <>
+              <button type="button" className="btn-secondary" onClick={() => setShowTransferModal(false)}>Cancel</button>
+              <button type="submit" form="transfer-form" className="btn-primary" disabled={transferBusy}>
+                {transferBusy ? 'Transferring...' : 'Confirm Hospital Transfer'}
+              </button>
+            </>
+          }
+        >
+          <form id="transfer-form" onSubmit={handleTransferSubmit} className="space-y-4">
+            <div className="rounded-xl bg-blue-50 border border-blue-100 p-3.5 text-xs text-blue-900">
+              <strong className="block text-sm mb-1 flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                Cross-Hospital History Portability
+              </strong>
+              Transferring will update your active care center to the chosen hospital. All your past medical history visits, diagnoses, and prescriptions will remain safely linked and immediately accessible to doctors at the new hospital.
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Select Destination Hospital</label>
+              <select
+                className="input w-full"
+                value={targetHosp}
+                onChange={(e) => setTargetHosp(e.target.value)}
+                required
+              >
+                {hospitalsList.map((h) => (
+                  <option key={h.hospital_id} value={h.hospital_id}>
+                    {h.name} ({h.city})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {modal === 'appointment' && <AppointmentFormModal patientId={p.patient_id} onClose={() => setModal(null)} onSaved={() => { setModal(null); appts.reload({ silent: true }); }} />}
       {modal === 'history' && <HistoryFormModal patientId={p.patient_id} onClose={() => setModal(null)} onSaved={() => { setModal(null); history.reload({ silent: true }); }} />}

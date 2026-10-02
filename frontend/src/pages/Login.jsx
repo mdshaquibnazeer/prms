@@ -104,7 +104,6 @@ export default function Login() {
       const res = await authApi.registerHospital(hospForm);
       setSuccessMsg(res.message);
       setAuthMode('login');
-      // Refresh hospital list
       const hList = await hospitalsApi.listPublic();
       setHospitals(hList.data || []);
     } catch (err) {
@@ -285,12 +284,12 @@ export default function Login() {
           {activeRole === 'admin' && (
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               <FormField
-                label="Main Admin ID / Email"
+                label="Admin ID"
                 type="text"
                 autoComplete="username"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
-                placeholder="admin@shaquib"
+                placeholder="Enter Admin ID"
               />
               <FormField
                 label="Password"
@@ -305,17 +304,6 @@ export default function Login() {
                 {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                 {busy ? 'Authenticating...' : 'Sign in as Super Admin'}
               </button>
-
-              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Demo Admin: <strong className="text-slate-700">admin@shaquib</strong></span>
-                <button
-                  type="button"
-                  onClick={() => { setLoginEmail('admin@shaquib'); setLoginPassword('ABcd@1234'); }}
-                  className="text-brand-600 hover:text-brand-700 font-semibold"
-                >
-                  Auto-fill Credentials
-                </button>
-              </div>
             </form>
           )}
 
@@ -329,12 +317,7 @@ export default function Login() {
                     <select
                       className="input w-full"
                       value={selectedHospital}
-                      onChange={(e) => {
-                        const hid = e.target.value;
-                        setSelectedHospital(hid);
-                        const match = hospitals.find(h => h.hospital_id === hid);
-                        if (match) setLoginEmail(match.email || `${match.hospital_id.toLowerCase()}@hospital.com`);
-                      }}
+                      onChange={(e) => setSelectedHospital(e.target.value)}
                     >
                       {hospitals.map((h) => (
                         <option key={h.hospital_id} value={h.hospital_id}>
@@ -349,7 +332,7 @@ export default function Login() {
                     type="email"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="apex@hospital.com"
+                    placeholder="admin@hospital.com"
                   />
                   <FormField
                     label="Password"
@@ -363,26 +346,11 @@ export default function Login() {
                     {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                     {busy ? 'Verifying...' : 'Sign in as Hospital Admin'}
                   </button>
-
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <span>Demo Hospital: <strong className="text-slate-700">apex@hospital.com</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedHospital('H001');
-                        setLoginEmail('apex@hospital.com');
-                        setLoginPassword('Hospital@123');
-                      }}
-                      className="text-brand-600 hover:text-brand-700 font-semibold"
-                    >
-                      Auto-fill Apex Hospital
-                    </button>
-                  </div>
                 </form>
               ) : (
                 <form onSubmit={handleRegisterHospital} className="space-y-3.5">
                   <div className="rounded-xl bg-blue-50/80 p-3 text-xs text-blue-800 border border-blue-100">
-                    <strong>Hospital Network Notice:</strong> 10 fictional hospitals are pre-approved. New hospital registrations are submitted to the <strong>Main Admin for approval</strong> before activation.
+                    <strong>Hospital Network Notice:</strong> Initial 10 slots are pre-approved. New hospital registrations are submitted to the <strong>Main Admin for approval</strong>.
                   </div>
                   <FormField label="Hospital Name" value={hospForm.name} onChange={(e) => setHospForm({ ...hospForm, name: e.target.value })} placeholder="e.g. City Life General Hospital" />
                   <div className="grid grid-cols-2 gap-2.5">
@@ -410,7 +378,7 @@ export default function Login() {
               {authMode === 'login' ? (
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
                   <div className="rounded-xl bg-emerald-50/80 p-3 text-xs text-emerald-900 border border-emerald-100 mb-2">
-                    <strong>Hospital Verification:</strong> You must select your affiliated hospital. Doctor credentials will be rejected if the wrong hospital is selected.
+                    <strong>Hospital Verification:</strong> Please select your affiliated hospital. Doctor credentials are strictly validated against the chosen hospital.
                   </div>
 
                   <div>
@@ -450,21 +418,6 @@ export default function Login() {
                     {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                     {busy ? 'Verifying Hospital & Credentials...' : 'Sign in as Doctor'}
                   </button>
-
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <span>Demo: <strong className="text-slate-700">Dr. Rajesh Sharma (Apex)</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedHospital('H001');
-                        setLoginEmail('rajesh.sharma@hospital.com');
-                        setLoginPassword('Doctor@123');
-                      }}
-                      className="text-brand-600 hover:text-brand-700 font-semibold"
-                    >
-                      Auto-fill Dr. Sharma
-                    </button>
-                  </div>
                 </form>
               ) : (
                 <form onSubmit={handleRegisterDoctor} className="space-y-3.5">
@@ -546,25 +499,11 @@ export default function Login() {
                     {busy && <Loader2 className="h-4 w-4 animate-spin" />}
                     {busy ? 'Signing In...' : 'Sign in as Patient'}
                   </button>
-
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <span>Demo Patient: <strong className="text-slate-700">rahul@patient.com</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLoginEmail('rahul@patient.com');
-                        setLoginPassword('Patient@123');
-                      }}
-                      className="text-brand-600 hover:text-brand-700 font-semibold"
-                    >
-                      Auto-fill Rahul
-                    </button>
-                  </div>
                 </form>
               ) : (
                 <form onSubmit={handleRegisterPatient} className="space-y-3">
                   <div className="rounded-xl bg-amber-50/80 p-3 text-xs text-amber-900 border border-amber-100 mb-1">
-                    <strong>Instant Patient Access:</strong> No waiting for approval. Register and book consultations or view your medical history immediately!
+                    <strong>Instant Patient Access:</strong> No admin approval needed. Access consultations, medical records, or transfer hospital care seamlessly.
                   </div>
 
                   <FormField label="Full Name" value={patForm.name} onChange={(e) => setPatForm({ ...patForm, name: e.target.value })} placeholder="Full Name" />
@@ -595,7 +534,7 @@ export default function Login() {
                   <FormField label="Create Password" type="password" value={patForm.password} onChange={(e) => setPatForm({ ...patForm, password: e.target.value })} placeholder="Min 8 characters" />
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Hospital</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Primary Hospital</label>
                     <select
                       className="input w-full text-xs"
                       value={patForm.hospital_id}
@@ -619,7 +558,7 @@ export default function Login() {
           )}
         </div>
 
-        {/* Quick Visitor Actions (Appointments & Emergency Cases) */}
+        {/* Visitor / Quick Info */}
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
             <div>
@@ -627,18 +566,14 @@ export default function Login() {
                 <Siren className="h-5 w-5" />
               </span>
               <h3 className="text-sm font-bold text-slate-800">Emergency Queue</h3>
-              <p className="text-xs text-slate-500 mt-0.5">High-priority triage queue powered by Min-Heap</p>
+              <p className="text-xs text-slate-500 mt-0.5">High-urgency emergency cases prioritized by Min-Heap</p>
             </div>
             <button
               type="button"
-              onClick={() => {
-                setActiveRole('patient');
-                setLoginEmail('rahul@patient.com');
-                setLoginPassword('Patient@123');
-              }}
+              onClick={() => setActiveRole('patient')}
               className="mt-3 text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
             >
-              Sign in to view Triage <ArrowRight className="h-3 w-3" />
+              Patient Sign In <ArrowRight className="h-3 w-3" />
             </button>
           </div>
 
@@ -648,7 +583,7 @@ export default function Login() {
                 <CalendarDays className="h-5 w-5" />
               </span>
               <h3 className="text-sm font-bold text-slate-800">Book Appointment</h3>
-              <p className="text-xs text-slate-500 mt-0.5">FIFO regular scheduling across 10 hospitals</p>
+              <p className="text-xs text-slate-500 mt-0.5">FIFO regular scheduling across 10 hospital branches</p>
             </div>
             <button
               type="button"
