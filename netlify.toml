@@ -3,6 +3,15 @@
   publish = "dist"
   command = "npm run build"
 
+[build.environment]
+  VITE_API_URL = "https://prms-jfnx.onrender.com/api"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://prms-jfnx.onrender.com/api/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
