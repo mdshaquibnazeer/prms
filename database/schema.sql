@@ -40,9 +40,9 @@ CREATE TABLE patients (
     patient_id   VARCHAR(20)  PRIMARY KEY,                    -- e.g. P1001
     hospital_id  VARCHAR(30)  REFERENCES hospitals(hospital_id) ON DELETE SET NULL,
     name         VARCHAR(100) NOT NULL,
-    age          INTEGER      NOT NULL CHECK (age BETWEEN 0 AND 120),
-    gender       VARCHAR(10)  NOT NULL CHECK (gender IN ('Male', 'Female', 'Other')),
-    phone        VARCHAR(20)  NOT NULL,
+    age          INTEGER      NOT NULL DEFAULT 25 CHECK (age BETWEEN 0 AND 120),
+    gender       VARCHAR(10)  NOT NULL DEFAULT 'Other' CHECK (gender IN ('Male', 'Female', 'Other')),
+    phone        VARCHAR(20),
     email        VARCHAR(120),
     address      TEXT,
     blood_group  VARCHAR(3)   CHECK (blood_group IN ('A+','A-','B+','B-','AB+','AB-','O+','O-')),
@@ -91,7 +91,8 @@ CREATE TABLE prescriptions (
 CREATE TABLE users (
     user_id        SERIAL       PRIMARY KEY,
     name           VARCHAR(100) NOT NULL,
-    email          VARCHAR(120) NOT NULL UNIQUE,
+    email          VARCHAR(120) UNIQUE,
+    phone          VARCHAR(20)  UNIQUE,
     password_hash  VARCHAR(100) NOT NULL,
     role           VARCHAR(20)  NOT NULL CHECK (role IN ('admin', 'hospital', 'doctor', 'patient', 'receptionist')),
     hospital_id    VARCHAR(30)  REFERENCES hospitals(hospital_id) ON DELETE SET NULL,
@@ -125,3 +126,5 @@ CREATE INDEX idx_emergency_status     ON emergency_queue(status, priority, arriv
 CREATE INDEX idx_doctors_hospital     ON doctors(hospital_id);
 CREATE INDEX idx_patients_hospital    ON patients(hospital_id);
 CREATE INDEX idx_users_email          ON users(email);
+CREATE INDEX idx_users_phone          ON users(phone);
+CREATE INDEX idx_patients_phone       ON patients(phone);

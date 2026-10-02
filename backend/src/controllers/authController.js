@@ -4,8 +4,9 @@ const userModel = require('../models/userModel');
 const AppError = require('../utils/AppError');
 
 exports.login = asyncHandler(async (req, res) => {
-  const { email, password, role, hospital_id } = req.body;
-  const { token, user } = await authService.login(email, password, { role, hospital_id });
+  const { email, identifier, password, role, hospital_id } = req.body;
+  const loginId = identifier || email;
+  const { token, user } = await authService.login(loginId, password, { role, hospital_id });
   res.json({ success: true, token, user });
 });
 

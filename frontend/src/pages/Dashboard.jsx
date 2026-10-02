@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   CalendarDays, Siren, Stethoscope, UserPlus, Users, CalendarPlus,
-  ShieldCheck, Building2, CheckCircle, XCircle, ArrowRight, X, Clock, Award
+  ShieldCheck, Building2, CheckCircle, XCircle, ArrowRight, X, Clock, Award, AlertCircle
 } from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { AsyncBoundary, EmptyState } from '../components/Feedback';
 import { PriorityBadge, StatusBadge } from '../components/Badges';
 import { useAsync } from '../hooks/useAsync';
-import { dashboardApi, adminApi, hospitalsApi, doctorsApi, appointmentsApi } from '../services/api';
+import { dashboardApi, adminApi, hospitalsApi, doctorsApi, appointmentsApi, patientsApi } from '../services/api';
 import { formatDate, waitingText } from '../utils/format';
 import { useAuth } from '../context/AuthContext';
 
@@ -48,6 +48,8 @@ export default function Dashboard() {
   const [bookPriority, setBookPriority] = useState(3);
   const [bookingBusy, setBookingBusy] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [patientRecord, setPatientRecord] = useState(null);
+  const [dismissIncomplete, setDismissIncomplete] = useState(false);
 
   useEffect(() => {
     if (user?.role === 'patient' && searchParams.get('welcome') === 'patient') {
@@ -76,6 +78,11 @@ export default function Dashboard() {
         setAvailableDocs(res.data || []);
         if (res.data?.length > 0) setBookDoc(res.data[0].doctor_id);
       });
+      if (user.patient_id) {
+        patientsApi.get(user.patient_id)
+          .then((res) => setPatientRecord(res.data))
+          .catch(() => {});
+      }
     }
   }, [user]);
 
@@ -116,6 +123,22 @@ export default function Dashboard() {
       setBookingBusy(false);
     }
   };
+
+  const missingProfileFields = [];
+  if (user?.role === 'patient') {
+    const curEmail = patientRecord?.email || user?.email;
+    const curPhone = patientRecord?.phone || user?.phone;
+    const curBlood = patientRecord?.blood_group;
+    const curAddress = patientRecord?.address;
+
+    if (!curEmail) missingProfileFields.push('Email');
+    if (!curPhone) missingProfileFields.push('Phone Number');
+    if (!curBlood) missingProfileFields.push('Blood Group');
+    if (!curAddress) missingProfileFields.push('Address');
+  }
+  const totalProfileFields = 4;
+  const completedProfileFields = totalProfileFields - missingProfileFields.length;
+  const profileCompletionPct = Math.round((completedProfileFields / totalProfileFields) * 100);
 
   return (
     <>
@@ -253,6 +276,66 @@ export default function Dashboard() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* PATIENT INCOMPLETE PROFILE NOTIFICATION BANNER / BUBBLE */}
+      {user.role === 'patient' && missingProfileFields.length > 0 && !dismissIncomplete && (
+        <div className="mb-6 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-300/80 p-4 sm:p-5 shadow-xs relative overflow-hidden animate-in fade-in duration-300">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="relative shrink-0 mt-0.5">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-500/30">
+                  <AlertCircle className="h-6 w-6" />
+                </span>
+                {/* Glowing Notification Bubble Badge */}
+                <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] font-extrabold text-white items-center justify-center shadow-xs">
+                    !
+                  </span>
+                </span>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    Profile Incomplete Notice
+                  </h4>
+                  <span className="rounded-full bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-bold px-2.5 py-0.5">
+                    {profileCompletionPct}% Completed
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-1 max-w-xl">
+                  You registered with minimal details. Missing: <strong className="text-amber-900">{missingProfileFields.join(', ')}</strong>. Completing your profile ensures seamless hospital transfers, emergency queue prioritization, and verified records.
+                </p>
+
+                {/* Micro Progress Bar */}
+                <div className="mt-2.5 w-full max-w-xs bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-amber-500 h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${profileCompletionPct}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+              <button
+                type="button"
+                onClick={() => setDismissIncomplete(true)}
+                className="text-xs text-slate-500 hover:text-slate-700 py-1.5 px-2.5 rounded-lg"
+              >
+                Dismiss
+              </button>
+              <Link
+                to={user.patient_id ? `/patients/${user.patient_id}/edit` : '/patients'}
+                className="btn-primary text-xs py-2 px-4 font-semibold bg-amber-600 hover:bg-amber-700 shadow-sm whitespace-nowrap"
+              >
+                Complete Profile
+              </Link>
+            </div>
           </div>
         </div>
       )}

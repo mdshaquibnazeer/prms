@@ -21,8 +21,11 @@ function validate(f, isEdit) {
   const age = Number(f.age);
   if (f.age === '') e.age = 'Age is required.';
   else if (!Number.isInteger(age) || age < 0 || age > 120) e.age = 'Age must be a whole number between 0 and 120.';
-  if (!f.phone.trim()) e.phone = 'Phone number is required.';
-  else if (!/^\+?[0-9\s-]{7,15}$/.test(f.phone.trim())) e.phone = 'Enter a valid phone number (7-15 digits).';
+  if (!f.phone.trim() && !f.email.trim()) {
+    e.phone = 'Please provide at least a phone number or an email address.';
+  } else if (f.phone.trim() && !/^\+?[0-9\s-]{7,15}$/.test(f.phone.trim())) {
+    e.phone = 'Enter a valid phone number (7-15 digits).';
+  }
   if (f.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = 'Enter a valid email address.';
   return e;
 }

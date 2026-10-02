@@ -28,12 +28,18 @@ exports.create = async (p) =>
     [p.patient_id, p.hospital_id || null, p.name, p.age, p.gender, p.phone, p.email, p.address, p.blood_group]
   )).rows[0];
 
-exports.update = async (id, p) =>
-  (await db.query(
+exports.update = async (id, p) => {
+  const res = (await db.query(
     `UPDATE patients SET hospital_id=COALESCE($2, hospital_id), name=$3, age=$4, gender=$5, phone=$6, email=$7, address=$8, blood_group=$9, updated_at=NOW()
      WHERE patient_id=$1 RETURNING *`,
     [id, p.hospital_id, p.name, p.age, p.gender, p.phone, p.email, p.address, p.blood_group]
   )).rows[0];
+  await db.query(
+    'UPDATE users SET email = COALESCE($2, email), phone = COALESCE($3, phone), name = $4 WHERE patient_id = $1',
+    [id, p.email || null, p.phone || null, p.name]
+  );
+  return res;
+};
 
 exports.updateHospital = async (patient_id, hospital_id) =>
   (await db.query(

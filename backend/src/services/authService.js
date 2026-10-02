@@ -8,25 +8,53 @@ const patientModel = require('../models/patientModel');
 const patientService = require('./patientService');
 const AppError = require('../utils/AppError');
 
-const publicUser = (u) => ({
-  id: u.user_id,
-  name: u.name,
-  email: u.email,
-  role: u.role,
-  hospital_id: u.hospital_id || null,
-  hospital_name: u.hospital_name || null,
-  doctor_id: u.doctor_id || null,
-  doctor_name: u.doctor_name || null,
-  patient_id: u.patient_id || null,
-  patient_name: u.patient_name || null,
-  status: u.status || 'approved',
-});
+const publicUser = (u) => {
+  const email = u.email || u.patient_email || null;
+  const phone = u.user_phone || u.phone || u.patient_phone || null;
+  const blood_group = u.blood_group || null;
+  const address = u.address || null;
 
-async function login(email, password, { role = null, hospital_id = null } = {}) {
-  if (!email || !password) throw new AppError(400, 'Email and password are required.');
-  const user = await userModel.findByEmail(String(email).trim());
+  let profileCompleteness = null;
+  if (u.role === 'patient') {
+    const missing = [];
+    if (!email) missing.push('Email');
+    if (!phone) missing.push('Phone Number');
+    if (!blood_group) missing.push('Blood Group');
+    if (!address) missing.push('Address');
+
+    const totalFields = 4;
+    const completedFields = totalFields - missing.length;
+    const percentage = Math.round((completedFields / totalFields) * 100);
+
+    profileCompleteness = {
+      isComplete: missing.length === 0,
+      percentage,
+      missing,
+    };
+  }
+
+  return {
+    id: u.user_id,
+    name: u.name,
+    email,
+    phone,
+    role: u.role,
+    hospital_id: u.hospital_id || null,
+    hospital_name: u.hospital_name || null,
+    doctor_id: u.doctor_id || null,
+    doctor_name: u.doctor_name || null,
+    patient_id: u.patient_id || null,
+    patient_name: u.patient_name || null,
+    status: u.status || 'approved',
+    profileCompleteness,
+  };
+};
+
+async function login(identifier, password, { role = null, hospital_id = null } = {}) {
+  if (!identifier || !password) throw new AppError(400, 'Email/Phone and password are required.');
+  const user = await userModel.findByEmailOrPhone(String(identifier).trim());
   const ok = user && (await bcrypt.compare(String(password), user.password_hash));
-  if (!ok) throw new AppError(401, 'Invalid email or password.');
+  if (!ok) throw new AppError(401, 'Invalid credentials. Please check your email or phone number and password.');
 
   // If user role is pending approval
   if (user.status === 'pending') {
@@ -132,28 +160,42 @@ async function registerDoctor({ name, specialization, phone, email, password, ho
 }
 
 async function registerPatient({ name, email, password, phone, age, gender, address, blood_group, hospital_id = null }) {
-  if (!name || !email || !password || !phone || age === undefined || !gender) {
-    throw new AppError(400, 'Name, email, password, phone, age, and gender are required.');
+  const cleanName = String(name || '').trim();
+  const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+  const cleanPhone = phone ? String(phone).trim() : null;
+
+  if (!cleanName || !password) {
+    throw new AppError(400, 'Full name and password are required.');
   }
-  if (await userModel.findByEmail(email)) throw new AppError(409, 'An account with this email already exists.');
+  if (!cleanEmail && !cleanPhone) {
+    throw new AppError(400, 'Please provide either an Email address OR a Phone number to register.');
+  }
+
+  if (cleanEmail && (await userModel.findByEmail(cleanEmail))) {
+    throw new AppError(409, 'An account with this email already exists.');
+  }
+  if (cleanPhone && (await userModel.findByPhone(cleanPhone))) {
+    throw new AppError(409, 'An account with this phone number already exists.');
+  }
 
   const patient_id = await patientModel.nextId();
   const patient = await patientModel.create({
     patient_id,
     hospital_id: hospital_id || null,
-    name,
-    age: Number(age),
-    gender,
-    phone,
-    email,
-    address,
-    blood_group,
+    name: cleanName,
+    age: age !== undefined && age !== '' ? Number(age) : 25,
+    gender: gender || 'Other',
+    phone: cleanPhone,
+    email: cleanEmail,
+    address: address || null,
+    blood_group: blood_group || null,
   });
 
   const password_hash = await bcrypt.hash(password, 10);
   const user = await userModel.create({
-    name,
-    email,
+    name: cleanName,
+    email: cleanEmail,
+    phone: cleanPhone,
     password_hash,
     role: 'patient',
     hospital_id: hospital_id || null,
@@ -162,7 +204,8 @@ async function registerPatient({ name, email, password, phone, age, gender, addr
   });
 
   await patientService.refreshIndex();
-  const u = publicUser(user);
+  const enrichedUser = await userModel.findById(user.user_id);
+  const u = publicUser(enrichedUser || user);
   const token = jwt.sign(u, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
   return { token, user: u, patient, message: 'Welcome! Account created successfully.' };
 }

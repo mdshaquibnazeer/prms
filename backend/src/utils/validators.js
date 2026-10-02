@@ -31,21 +31,31 @@ function validatePatient(body, { isUpdate = false } = {}) {
   else if (v.name.length > 100) errors.name = 'Name must be 100 characters or fewer.';
 
   const ageRaw = str(body.age);
-  v.age = Number(ageRaw);
-  if (ageRaw === '') errors.age = 'Age is required.';
-  else if (!Number.isInteger(v.age) || v.age < 0 || v.age > 120) errors.age = 'Age must be a whole number between 0 and 120.';
+  if (ageRaw === '') {
+    v.age = 25; // Default age if not provided during quick signup
+  } else {
+    v.age = Number(ageRaw);
+    if (!Number.isInteger(v.age) || v.age < 0 || v.age > 120) errors.age = 'Age must be a whole number between 0 and 120.';
+  }
 
-  v.gender = str(body.gender);
-  if (!GENDERS.includes(v.gender)) errors.gender = 'Choose Male, Female or Other.';
+  v.gender = str(body.gender) || 'Other';
+  if (!GENDERS.includes(v.gender)) v.gender = 'Other';
 
   v.phone = str(body.phone);
-  if (!v.phone) errors.phone = 'Phone number is required.';
-  else if (!/^\+?[0-9\s-]{7,15}$/.test(v.phone) || v.phone.replace(/\D/g, '').length < 7) errors.phone = 'Enter a valid phone number (7-15 digits).';
+  if (v.phone && (!/^\+?[0-9\s-]{7,15}$/.test(v.phone) || v.phone.replace(/\D/g, '').length < 7)) {
+    errors.phone = 'Enter a valid phone number (7-15 digits).';
+  }
+  if (!v.phone) v.phone = null;
 
   v.email = str(body.email);
   if (v.email && !EMAIL_RE.test(v.email)) errors.email = 'Enter a valid email address.';
   if (!v.email) v.email = null;
 
+  if (!v.phone && !v.email) {
+    errors.contact = 'Please provide at least a phone number or an email address.';
+  }
+
+  v.hospital_id = str(body.hospital_id) || null;
   v.address = str(body.address) || null;
 
   v.blood_group = str(body.blood_group);

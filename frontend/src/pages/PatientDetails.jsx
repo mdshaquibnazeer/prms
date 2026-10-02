@@ -89,6 +89,12 @@ export default function PatientDetails() {
     }
   };
 
+  const missingInPatient = [];
+  if (!p.email) missingInPatient.push('Email');
+  if (!p.phone) missingInPatient.push('Phone Number');
+  if (!p.blood_group) missingInPatient.push('Blood Group');
+  if (!p.address) missingInPatient.push('Address');
+
   return (
     <>
       <Link to="/patients" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden="true" />All patients</Link>
@@ -107,6 +113,29 @@ export default function PatientDetails() {
       </PageHeader>
 
       <div className="space-y-5">
+        {missingInPatient.length > 0 && (
+          <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+              </span>
+              <div>
+                <strong className="text-xs font-bold text-amber-900">Incomplete Profile Notice:</strong>
+                <span className="text-xs text-amber-800 ml-1.5">
+                  Missing: {missingInPatient.join(', ')}. Complete these details for full patient records.
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate(`/patients/${p.patient_id}/edit`)}
+              className="btn-primary text-xs py-1.5 px-3 bg-amber-600 hover:bg-amber-700 whitespace-nowrap"
+            >
+              Complete Details
+            </button>
+          </div>
+        )}
+
         <section className="card card-pad" aria-label="Patient details">
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Field label="Patient ID" value={p.patient_id} />

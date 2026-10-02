@@ -67,7 +67,7 @@ export default function Login() {
     setError('');
     setSuccessMsg('');
     if (!loginEmail.trim() || !loginPassword) {
-      setError('Please enter your email and password.');
+      setError(activeRole === 'patient' ? 'Please enter your email or phone number and password.' : 'Please enter your email and password.');
       return;
     }
 
@@ -137,8 +137,12 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
-    if (!patForm.name || !patForm.email || !patForm.password || !patForm.phone) {
-      setError('Please provide your name, phone, email, and password.');
+    if (!patForm.name.trim() || !patForm.password) {
+      setError('Please provide your full name and password.');
+      return;
+    }
+    if (!patForm.email.trim() && !patForm.phone.trim()) {
+      setError('Please provide either an Email address OR a Phone number.');
       return;
     }
     setBusy(true);
@@ -148,7 +152,7 @@ export default function Login() {
         setSession(res.token, res.user);
         navigate('/dashboard?welcome=patient', { replace: true });
       } else {
-        setSuccessMsg('Account created successfully! You can now log in.');
+        setSuccessMsg('Account created successfully! You can now log in with your email or phone.');
         setAuthMode('login');
       }
     } catch (err) {
@@ -481,11 +485,11 @@ export default function Login() {
               {authMode === 'login' ? (
                 <form onSubmit={handleLoginSubmit} className="space-y-4">
                   <FormField
-                    label="Patient Email"
-                    type="email"
+                    label="Email or Phone Number"
+                    type="text"
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="patient@example.com"
+                    placeholder="Enter your registered email or phone"
                   />
                   <FormField
                     label="Password"
@@ -503,43 +507,40 @@ export default function Login() {
               ) : (
                 <form onSubmit={handleRegisterPatient} className="space-y-3">
                   <div className="rounded-xl bg-amber-50/80 p-3 text-xs text-amber-900 border border-amber-100 mb-1">
-                    <strong>Instant Patient Access:</strong> No admin approval needed. Access consultations, medical records, or transfer hospital care seamlessly.
+                    <strong>Flexible Registration:</strong> You only need to provide <strong>either an Email OR a Phone number</strong> to register. Remaining profile details can be updated anytime from your dashboard.
                   </div>
 
-                  <FormField label="Full Name" value={patForm.name} onChange={(e) => setPatForm({ ...patForm, name: e.target.value })} placeholder="Full Name" />
+                  <FormField label="Full Name *" value={patForm.name} onChange={(e) => setPatForm({ ...patForm, name: e.target.value })} placeholder="Your Full Name" />
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <FormField label="Age" type="number" min="0" max="120" value={patForm.age} onChange={(e) => setPatForm({ ...patForm, age: e.target.value })} />
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Gender</label>
-                      <select className="input w-full" value={patForm.gender} onChange={(e) => setPatForm({ ...patForm, gender: e.target.value })}>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Group</label>
-                      <select className="input w-full" value={patForm.blood_group} onChange={(e) => setPatForm({ ...patForm, blood_group: e.target.value })}>
-                        {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <FormField
+                      label="Phone Number"
+                      type="tel"
+                      value={patForm.phone}
+                      onChange={(e) => setPatForm({ ...patForm, phone: e.target.value })}
+                      placeholder="+91 98765 00000"
+                      hint={!patForm.email ? "Required if no email" : "Optional"}
+                    />
+                    <FormField
+                      label="Email Address"
+                      type="email"
+                      value={patForm.email}
+                      onChange={(e) => setPatForm({ ...patForm, email: e.target.value })}
+                      placeholder="name@example.com"
+                      hint={!patForm.phone ? "Required if no phone" : "Optional"}
+                    />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <FormField label="Phone Number" value={patForm.phone} onChange={(e) => setPatForm({ ...patForm, phone: e.target.value })} placeholder="+91 98765 00000" />
-                    <FormField label="Email" type="email" value={patForm.email} onChange={(e) => setPatForm({ ...patForm, email: e.target.value })} placeholder="name@example.com" />
-                  </div>
-
-                  <FormField label="Create Password" type="password" value={patForm.password} onChange={(e) => setPatForm({ ...patForm, password: e.target.value })} placeholder="Min 8 characters" />
+                  <FormField label="Create Password *" type="password" value={patForm.password} onChange={(e) => setPatForm({ ...patForm, password: e.target.value })} placeholder="Min 8 characters" />
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Primary Hospital</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Primary Hospital (Optional)</label>
                     <select
                       className="input w-full text-xs"
                       value={patForm.hospital_id}
                       onChange={(e) => setPatForm({ ...patForm, hospital_id: e.target.value })}
                     >
+                      <option value="">-- Choose Hospital (or select later) --</option>
                       {hospitals.map((h) => (
                         <option key={h.hospital_id} value={h.hospital_id}>
                           {h.name} ({h.city})
@@ -547,6 +548,33 @@ export default function Login() {
                       ))}
                     </select>
                   </div>
+
+                  <details className="text-xs bg-slate-50/80 p-2.5 rounded-xl border border-slate-200">
+                    <summary className="font-semibold text-slate-700 cursor-pointer select-none">
+                      Additional Medical Details (Optional · Can fill later)
+                    </summary>
+                    <div className="pt-3 space-y-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <FormField label="Age" type="number" min="0" max="120" value={patForm.age} onChange={(e) => setPatForm({ ...patForm, age: e.target.value })} />
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Gender</label>
+                          <select className="input w-full" value={patForm.gender} onChange={(e) => setPatForm({ ...patForm, gender: e.target.value })}>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Group</label>
+                          <select className="input w-full" value={patForm.blood_group} onChange={(e) => setPatForm({ ...patForm, blood_group: e.target.value })}>
+                            <option value="">Unknown</option>
+                            {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <FormField label="Address" value={patForm.address || ''} onChange={(e) => setPatForm({ ...patForm, address: e.target.value })} placeholder="Home or city address" />
+                    </div>
+                  </details>
 
                   <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium mt-2">
                     {busy && <Loader2 className="h-4 w-4 animate-spin" />}
