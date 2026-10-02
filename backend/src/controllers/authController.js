@@ -2,11 +2,40 @@ const asyncHandler = require('../utils/asyncHandler');
 const authService = require('../services/authService');
 const userModel = require('../models/userModel');
 const AppError = require('../utils/AppError');
-const { validateUser } = require('../utils/validators');
 
 exports.login = asyncHandler(async (req, res) => {
-  const { token, user } = await authService.login(req.body.email, req.body.password);
+  const { email, password, role, hospital_id } = req.body;
+  const { token, user } = await authService.login(email, password, { role, hospital_id });
   res.json({ success: true, token, user });
+});
+
+exports.registerHospital = asyncHandler(async (req, res) => {
+  const result = await authService.registerHospital(req.body);
+  res.status(result.isPending ? 202 : 201).json({
+    success: true,
+    message: result.message,
+    data: result,
+  });
+});
+
+exports.registerDoctor = asyncHandler(async (req, res) => {
+  const result = await authService.registerDoctor(req.body);
+  res.status(201).json({
+    success: true,
+    message: result.message,
+    data: result,
+  });
+});
+
+exports.registerPatient = asyncHandler(async (req, res) => {
+  const result = await authService.registerPatient(req.body);
+  res.status(201).json({
+    success: true,
+    message: result.message,
+    token: result.token,
+    user: result.user,
+    patient: result.patient,
+  });
 });
 
 exports.me = asyncHandler(async (req, res) => {
@@ -25,6 +54,6 @@ exports.listUsers = asyncHandler(async (req, res) => {
 });
 
 exports.createUser = asyncHandler(async (req, res) => {
-  const user = await authService.createUser(validateUser(req.body));
+  const user = await authService.createUser(req.body);
   res.status(201).json({ success: true, message: 'User created.', data: user });
 });

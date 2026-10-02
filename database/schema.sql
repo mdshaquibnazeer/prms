@@ -1,6 +1,5 @@
 -- =====================================================================
 -- Intelligent Patient Record Management System - PostgreSQL schema
--- Run this file ONCE on an empty database (it drops and recreates tables).
 -- =====================================================================
 
 DROP TABLE IF EXISTS emergency_queue CASCADE;
@@ -10,10 +9,36 @@ DROP TABLE IF EXISTS appointments    CASCADE;
 DROP TABLE IF EXISTS users           CASCADE;
 DROP TABLE IF EXISTS doctors         CASCADE;
 DROP TABLE IF EXISTS patients        CASCADE;
+DROP TABLE IF EXISTS hospitals       CASCADE;
 
--- 1. patients ---------------------------------------------------------
+-- 1. hospitals --------------------------------------------------------
+CREATE TABLE hospitals (
+    hospital_id   VARCHAR(30)  PRIMARY KEY,                    -- e.g. H001
+    name          VARCHAR(150) NOT NULL,
+    email         VARCHAR(120) NOT NULL UNIQUE,
+    phone         VARCHAR(20),
+    address       TEXT,
+    city          VARCHAR(100),
+    status        VARCHAR(20)  NOT NULL DEFAULT 'approved' CHECK (status IN ('approved', 'pending', 'rejected')),
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 2. doctors ----------------------------------------------------------
+CREATE TABLE doctors (
+    doctor_id      VARCHAR(20)  PRIMARY KEY,                  -- e.g. D001
+    hospital_id    VARCHAR(30)  REFERENCES hospitals(hospital_id) ON DELETE SET NULL,
+    name           VARCHAR(100) NOT NULL,
+    specialization VARCHAR(100) NOT NULL,
+    phone          VARCHAR(20),
+    email          VARCHAR(120),
+    status         VARCHAR(20)  NOT NULL DEFAULT 'approved' CHECK (status IN ('approved', 'pending', 'rejected')),
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+-- 3. patients ---------------------------------------------------------
 CREATE TABLE patients (
     patient_id   VARCHAR(20)  PRIMARY KEY,                    -- e.g. P1001
+    hospital_id  VARCHAR(30)  REFERENCES hospitals(hospital_id) ON DELETE SET NULL,
     name         VARCHAR(100) NOT NULL,
     age          INTEGER      NOT NULL CHECK (age BETWEEN 0 AND 120),
     gender       VARCHAR(10)  NOT NULL CHECK (gender IN ('Male', 'Female', 'Other')),
@@ -25,19 +50,7 @@ CREATE TABLE patients (
     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 2. doctors ----------------------------------------------------------
-CREATE TABLE doctors (
-    doctor_id      VARCHAR(20)  PRIMARY KEY,                  -- e.g. D001
-    name           VARCHAR(100) NOT NULL,
-    specialization VARCHAR(100) NOT NULL,
-    phone          VARCHAR(20),
-    email          VARCHAR(120),
-    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
--- 3. appointments -----------------------------------------------------
--- appointment_id is the primary key. patient_id is only a FOREIGN KEY
--- because one patient can have many appointments.
+-- 4. appointments -----------------------------------------------------
 CREATE TABLE appointments (
     appointment_id   SERIAL       PRIMARY KEY,
     patient_id       VARCHAR(20)  NOT NULL REFERENCES patients(patient_id) ON DELETE CASCADE,
@@ -50,7 +63,7 @@ CREATE TABLE appointments (
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 4. medical_history --------------------------------------------------
+-- 5. medical_history --------------------------------------------------
 CREATE TABLE medical_history (
     history_id  SERIAL       PRIMARY KEY,
     patient_id  VARCHAR(20)  NOT NULL REFERENCES patients(patient_id) ON DELETE CASCADE,
@@ -62,7 +75,7 @@ CREATE TABLE medical_history (
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 5. prescriptions ----------------------------------------------------
+-- 6. prescriptions ----------------------------------------------------
 CREATE TABLE prescriptions (
     prescription_id SERIAL       PRIMARY KEY,
     patient_id      VARCHAR(20)  NOT NULL REFERENCES patients(patient_id) ON DELETE CASCADE,
@@ -74,18 +87,21 @@ CREATE TABLE prescriptions (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 6. users (login accounts) -------------------------------------------
+-- 7. users (login accounts) -------------------------------------------
 CREATE TABLE users (
     user_id        SERIAL       PRIMARY KEY,
     name           VARCHAR(100) NOT NULL,
     email          VARCHAR(120) NOT NULL UNIQUE,
-    password_hash  VARCHAR(100) NOT NULL,                     -- bcrypt hash, never plain text
-    role           VARCHAR(15)  NOT NULL CHECK (role IN ('admin', 'doctor', 'receptionist')),
+    password_hash  VARCHAR(100) NOT NULL,
+    role           VARCHAR(20)  NOT NULL CHECK (role IN ('admin', 'hospital', 'doctor', 'patient', 'receptionist')),
+    hospital_id    VARCHAR(30)  REFERENCES hospitals(hospital_id) ON DELETE SET NULL,
+    doctor_id      VARCHAR(20)  REFERENCES doctors(doctor_id) ON DELETE SET NULL,
+    patient_id     VARCHAR(20)  REFERENCES patients(patient_id) ON DELETE SET NULL,
+    status         VARCHAR(20)  NOT NULL DEFAULT 'approved' CHECK (status IN ('approved', 'pending', 'rejected')),
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
--- 7. emergency_queue (extra table that stores the waiting list that the
---    in-memory Priority Queue / Heap is built from) ----------------------
+-- 8. emergency_queue --------------------------------------------------
 CREATE TABLE emergency_queue (
     queue_id       SERIAL       PRIMARY KEY,
     patient_id     VARCHAR(20)  NOT NULL REFERENCES patients(patient_id) ON DELETE CASCADE,
@@ -97,10 +113,15 @@ CREATE TABLE emergency_queue (
     processed_at   TIMESTAMPTZ
 );
 
--- Indexes for the foreign keys / common filters
+-- Indexes for performance
 CREATE INDEX idx_appointments_patient ON appointments(patient_id);
 CREATE INDEX idx_appointments_doctor  ON appointments(doctor_id);
 CREATE INDEX idx_appointments_date    ON appointments(appointment_date);
+CREATE INDEX idx_appointments_status  ON appointments(status);
 CREATE INDEX idx_history_patient      ON medical_history(patient_id);
+CREATE INDEX idx_history_date         ON medical_history(visit_date);
 CREATE INDEX idx_prescriptions_patient ON prescriptions(patient_id);
-CREATE INDEX idx_emergency_status     ON emergency_queue(status);
+CREATE INDEX idx_emergency_status     ON emergency_queue(status, priority, arrived_at);
+CREATE INDEX idx_doctors_hospital     ON doctors(hospital_id);
+CREATE INDEX idx_patients_hospital    ON patients(hospital_id);
+CREATE INDEX idx_users_email          ON users(email);

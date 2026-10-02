@@ -24,14 +24,19 @@ export function AuthProvider({ children }) {
       .finally(() => setBooting(false));
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const r = await authApi.login(email, password);
+  const setSession = useCallback((token, u) => {
+    tokenStore.set(token);
+    setUser(u);
+  }, []);
+
+  const login = useCallback(async (email, password, extra = {}) => {
+    const r = await authApi.login(email, password, extra);
     tokenStore.set(r.token);
     setUser(r.user);
     return r.user;
   }, []);
 
-  const value = useMemo(() => ({ user, booting, login, logout }), [user, booting, login, logout]);
+  const value = useMemo(() => ({ user, booting, login, logout, setSession }), [user, booting, login, logout, setSession]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

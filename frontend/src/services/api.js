@@ -57,11 +57,29 @@ const qs = (params) => {
 
 // ---- endpoint helpers (one place that lists every API call the UI makes) ----
 export const authApi = {
-  login: (email, password) => api.post('/auth/login', { email, password }),
+  login: (email, password, extra = {}) => api.post('/auth/login', { email, password, ...extra }),
+  registerHospital: (data) => api.post('/auth/register-hospital', data),
+  registerDoctor: (data) => api.post('/auth/register-doctor', data),
+  registerPatient: (data) => api.post('/auth/register-patient', data),
   me: () => api.get('/auth/me'),
   changePassword: (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }),
   users: () => api.get('/users'),
   createUser: (u) => api.post('/users', u),
+};
+
+export const hospitalsApi = {
+  listPublic: () => api.get('/hospitals/public'),
+  list: () => api.get('/hospitals'),
+  get: (id) => api.get(`/hospitals/${encodeURIComponent(id)}`),
+  updateStatus: (id, status) => api.put(`/hospitals/${encodeURIComponent(id)}/status`, { status }),
+  listDoctors: (id) => api.get(`/hospitals/${encodeURIComponent(id)}/doctors`),
+  createDoctor: (id, data) => api.post(`/hospitals/${encodeURIComponent(id)}/doctors`, data),
+};
+
+export const adminApi = {
+  doctorStats: () => api.get('/admin/doctor-stats'),
+  approvals: () => api.get('/admin/approvals'),
+  setApprovalStatus: (type, id, status) => api.put(`/admin/approvals/${type}/${encodeURIComponent(id)}`, { status }),
 };
 export const patientsApi = {
   list: (params) => api.get(`/patients${qs(params)}`),

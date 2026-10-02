@@ -14,9 +14,10 @@ import Doctors from './pages/Doctors';
 import DsaDemo from './pages/DsaDemo';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Hospitals from './pages/Hospitals';
 import NotFound from './pages/NotFound';
 
-const CLINICAL = ['admin', 'doctor'];
+const CLINICAL = ['admin', 'hospital', 'doctor', 'patient'];
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/history" element={<ProtectedRoute roles={CLINICAL}><MedicalHistory /></ProtectedRoute>} />
         <Route path="/prescriptions" element={<ProtectedRoute roles={CLINICAL}><Prescriptions /></ProtectedRoute>} />
         <Route path="/doctors" element={<Doctors />} />
+        <Route path="/hospitals" element={<ProtectedRoute roles={['admin']}><Hospitals /></ProtectedRoute>} />
         <Route path="/dsa" element={<DsaDemo />} />
         <Route path="/reports" element={<ProtectedRoute roles={['admin']}><Reports /></ProtectedRoute>} />
         <Route path="/settings" element={<Settings />} />

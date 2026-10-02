@@ -1,70 +1,667 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { HeartPulse, Loader2 } from 'lucide-react';
+import {
+  HeartPulse, Loader2, ShieldCheck, Building2, Stethoscope, User,
+  AlertCircle, CheckCircle2, ArrowRight, Siren, CalendarDays
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { hospitalsApi, authApi } from '../services/api';
 import FormField from '../components/FormField';
 
-const DEMO = [
-  { role: 'Admin', email: 'admin@hospital.com', password: 'Admin@123' },
-  { role: 'Doctor', email: 'doctor@hospital.com', password: 'Doctor@123' },
-  { role: 'Receptionist', email: 'reception@hospital.com', password: 'Reception@123' },
-];
-
 export default function Login() {
-  const { user, booting, login } = useAuth();
+  const { user, booting, login, setSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [form, setForm] = useState({ email: '', password: '' });
+
+  const [activeRole, setActiveRole] = useState('admin'); // 'admin', 'hospital', 'doctor', 'patient'
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [hospitals, setHospitals] = useState([]);
+  const [loadingHospitals, setLoadingHospitals] = useState(false);
+
+  // Common and Role-specific form states
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [selectedHospital, setSelectedHospital] = useState('');
+
+  // Hospital Registration State
+  const [hospForm, setHospForm] = useState({ name: '', email: '', phone: '', address: '', city: '', password: '' });
+
+  // Doctor Registration State
+  const [docForm, setDocForm] = useState({ name: '', specialization: 'General Medicine', phone: '', email: '', password: '', hospital_id: '' });
+
+  // Patient Registration State
+  const [patForm, setPatForm] = useState({ name: '', age: 30, gender: 'Male', phone: '', email: '', blood_group: 'O+', password: '', hospital_id: '' });
+
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setLoadingHospitals(true);
+    hospitalsApi.listPublic()
+      .then((res) => {
+        setHospitals(res.data || []);
+        if (res.data?.length > 0) {
+          setSelectedHospital(res.data[0].hospital_id);
+          setDocForm((prev) => ({ ...prev, hospital_id: res.data[0].hospital_id }));
+          setPatForm((prev) => ({ ...prev, hospital_id: res.data[0].hospital_id }));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingHospitals(false));
+  }, []);
 
   if (!booting && user) return <Navigate to="/dashboard" replace />;
 
-  const submit = async (e) => {
+  const resetState = (role) => {
+    setActiveRole(role);
+    setAuthMode('login');
+    setError('');
+    setSuccessMsg('');
+    setLoginEmail('');
+    setLoginPassword('');
+  };
+
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!form.email.trim() || !form.password) { setError('Enter your email and password.'); return; }
+    setSuccessMsg('');
+    if (!loginEmail.trim() || !loginPassword) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
+    if (activeRole === 'doctor' && !selectedHospital) {
+      setError('Please select your hospital from the list to log in as a Doctor.');
+      return;
+    }
+
     setBusy(true);
     try {
-      await login(form.email.trim(), form.password);
+      const extra = { role: activeRole };
+      if (activeRole === 'doctor') extra.hospital_id = selectedHospital;
+      if (activeRole === 'hospital') extra.hospital_id = selectedHospital;
+
+      await login(loginEmail.trim(), loginPassword, extra);
       navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegisterHospital = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    if (!hospForm.name || !hospForm.email || !hospForm.password) {
+      setError('Hospital name, email, and password are required.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await authApi.registerHospital(hospForm);
+      setSuccessMsg(res.message);
+      setAuthMode('login');
+      // Refresh hospital list
+      const hList = await hospitalsApi.listPublic();
+      setHospitals(hList.data || []);
+    } catch (err) {
+      setError(err.message || 'Registration failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegisterDoctor = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    if (!docForm.name || !docForm.email || !docForm.password || !docForm.hospital_id) {
+      setError('Please fill in all doctor details and choose a hospital.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await authApi.registerDoctor(docForm);
+      setSuccessMsg(res.message || 'Doctor registered successfully! You can now log in.');
+      setAuthMode('login');
+    } catch (err) {
+      setError(err.message || 'Doctor registration failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRegisterPatient = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    if (!patForm.name || !patForm.email || !patForm.password || !patForm.phone) {
+      setError('Please provide your name, phone, email, and password.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await authApi.registerPatient(patForm);
+      if (res.token && res.user) {
+        setSession(res.token, res.user);
+        navigate('/dashboard?welcome=patient', { replace: true });
+      } else {
+        setSuccessMsg('Account created successfully! You can now log in.');
+        setAuthMode('login');
+      }
+    } catch (err) {
+      setError(err.message || 'Patient registration failed.');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-600 text-white"><HeartPulse className="h-7 w-7" aria-hidden="true" /></span>
-          <h1 className="text-2xl font-bold">Patient Records</h1>
-          <p className="mt-1 text-sm text-muted">Intelligent Patient Record Management System</p>
+    <div className="min-h-screen bg-slate-50 py-10 px-4 flex flex-col justify-center items-center">
+      <div className="w-full max-w-xl">
+        {/* Header Branding */}
+        <div className="text-center mb-8">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-500/30 mb-3">
+            <HeartPulse className="h-8 w-8" />
+          </div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Patient Records System</h1>
+          <p className="mt-1 text-sm text-slate-500">Multi-Hospital Network &amp; Intelligent Record Management</p>
         </div>
 
-        <form onSubmit={submit} noValidate className="card card-pad space-y-4">
-          <h2 className="text-lg font-bold">Log in</h2>
-          {error && <p role="alert" className="rounded-lg bg-critical-soft px-3 py-2 text-sm font-medium text-critical">{error}</p>}
-          <FormField label="Email" type="email" autoComplete="username" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="you@hospital.com" />
-          <FormField label="Password" type="password" autoComplete="current-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          <button type="submit" className="btn-primary w-full" disabled={busy}>
-            {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}{busy ? 'Logging in...' : 'Login'}
+        {/* Quick Role Selection Tabs */}
+        <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-slate-200/80 rounded-2xl mb-6 shadow-inner">
+          <button
+            type="button"
+            onClick={() => resetState('admin')}
+            className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl text-xs font-semibold transition-all ${
+              activeRole === 'admin'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ShieldCheck className="h-4 w-4 mb-1" />
+            <span>Main Admin</span>
           </button>
-        </form>
 
-        <section className="mt-4 rounded-xl border border-dashed border-brand-200 bg-white/70 p-4" aria-label="Demo credentials">
-          <p className="text-sm font-semibold">Demo credentials <span className="font-normal text-muted">(for this college project only)</span></p>
-          <ul className="mt-2 space-y-1.5">
-            {DEMO.map((d) => (
-              <li key={d.role} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="min-w-0 break-all"><span className="font-semibold">{d.role}:</span> {d.email} / {d.password}</span>
-                <button type="button" className="btn-ghost btn-sm" onClick={() => setForm({ email: d.email, password: d.password })}>Fill in</button>
-              </li>
-            ))}
-          </ul>
-        </section>
+          <button
+            type="button"
+            onClick={() => resetState('hospital')}
+            className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl text-xs font-semibold transition-all ${
+              activeRole === 'hospital'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Building2 className="h-4 w-4 mb-1" />
+            <span>Hospital</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => resetState('doctor')}
+            className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl text-xs font-semibold transition-all ${
+              activeRole === 'doctor'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Stethoscope className="h-4 w-4 mb-1" />
+            <span>Doctor</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => resetState('patient')}
+            className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl text-xs font-semibold transition-all ${
+              activeRole === 'patient'
+                ? 'bg-white text-brand-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <User className="h-4 w-4 mb-1" />
+            <span>Patient</span>
+          </button>
+        </div>
+
+        {/* Main Card */}
+        <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 p-6 md:p-8">
+          {/* Header of Active Tab */}
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                {activeRole === 'admin' && <><ShieldCheck className="h-5 w-5 text-purple-600" /> Main Admin Portal</>}
+                {activeRole === 'hospital' && <><Building2 className="h-5 w-5 text-blue-600" /> Hospital Management</>}
+                {activeRole === 'doctor' && <><Stethoscope className="h-5 w-5 text-emerald-600" /> Doctor Portal</>}
+                {activeRole === 'patient' && <><User className="h-5 w-5 text-amber-600" /> Patient Access</>}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {activeRole === 'admin' && 'Central command for doctor statistics, approvals, and hospital network.'}
+                {activeRole === 'hospital' && 'Manage your hospital branch, doctors (up to 10), and patient queues.'}
+                {activeRole === 'doctor' && 'Select your affiliated hospital to access clinical patient records.'}
+                {activeRole === 'patient' && 'Instant access to prescriptions, medical timeline, and appointments.'}
+              </p>
+            </div>
+
+            {/* Toggle Login vs Register if supported */}
+            {activeRole !== 'admin' && (
+              <div className="flex bg-slate-100 p-1 rounded-lg text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('login'); setError(''); setSuccessMsg(''); }}
+                  className={`px-3 py-1 rounded-md transition-all ${authMode === 'login' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600'}`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setAuthMode('register'); setError(''); setSuccessMsg(''); }}
+                  className={`px-3 py-1 rounded-md transition-all ${authMode === 'register' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600'}`}
+                >
+                  Register
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Feedback Alerts */}
+          {error && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl bg-red-50 p-3.5 text-sm text-red-700 border border-red-100">
+              <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-500" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {successMsg && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl bg-emerald-50 p-3.5 text-sm text-emerald-800 border border-emerald-100">
+              <CheckCircle2 className="h-5 w-5 shrink-0 mt-0.5 text-emerald-600" />
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {/* 1. ADMIN LOGIN FORM */}
+          {activeRole === 'admin' && (
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <FormField
+                label="Main Admin ID / Email"
+                type="text"
+                autoComplete="username"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="admin@shaquib"
+              />
+              <FormField
+                label="Password"
+                type="password"
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+
+              <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium mt-2">
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                {busy ? 'Authenticating...' : 'Sign in as Super Admin'}
+              </button>
+
+              <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Demo Admin: <strong className="text-slate-700">admin@shaquib</strong></span>
+                <button
+                  type="button"
+                  onClick={() => { setLoginEmail('admin@shaquib'); setLoginPassword('ABcd@1234'); }}
+                  className="text-brand-600 hover:text-brand-700 font-semibold"
+                >
+                  Auto-fill Credentials
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* 2. HOSPITAL LOGIN & REGISTER */}
+          {activeRole === 'hospital' && (
+            <>
+              {authMode === 'login' ? (
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Select Hospital</label>
+                    <select
+                      className="input w-full"
+                      value={selectedHospital}
+                      onChange={(e) => {
+                        const hid = e.target.value;
+                        setSelectedHospital(hid);
+                        const match = hospitals.find(h => h.hospital_id === hid);
+                        if (match) setLoginEmail(match.email || `${match.hospital_id.toLowerCase()}@hospital.com`);
+                      }}
+                    >
+                      {hospitals.map((h) => (
+                        <option key={h.hospital_id} value={h.hospital_id}>
+                          {h.name} ({h.city})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <FormField
+                    label="Hospital Admin Email"
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="apex@hospital.com"
+                  />
+                  <FormField
+                    label="Password"
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+
+                  <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {busy ? 'Verifying...' : 'Sign in as Hospital Admin'}
+                  </button>
+
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span>Demo Hospital: <strong className="text-slate-700">apex@hospital.com</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedHospital('H001');
+                        setLoginEmail('apex@hospital.com');
+                        setLoginPassword('Hospital@123');
+                      }}
+                      className="text-brand-600 hover:text-brand-700 font-semibold"
+                    >
+                      Auto-fill Apex Hospital
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleRegisterHospital} className="space-y-3.5">
+                  <div className="rounded-xl bg-blue-50/80 p-3 text-xs text-blue-800 border border-blue-100">
+                    <strong>Hospital Network Notice:</strong> 10 fictional hospitals are pre-approved. New hospital registrations are submitted to the <strong>Main Admin for approval</strong> before activation.
+                  </div>
+                  <FormField label="Hospital Name" value={hospForm.name} onChange={(e) => setHospForm({ ...hospForm, name: e.target.value })} placeholder="e.g. City Life General Hospital" />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <FormField label="Official Email" type="email" value={hospForm.email} onChange={(e) => setHospForm({ ...hospForm, email: e.target.value })} placeholder="contact@hospital.com" />
+                    <FormField label="Phone" value={hospForm.phone} onChange={(e) => setHospForm({ ...hospForm, phone: e.target.value })} placeholder="+91 98765 00000" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <FormField label="City" value={hospForm.city} onChange={(e) => setHospForm({ ...hospForm, city: e.target.value })} placeholder="e.g. Bengaluru" />
+                    <FormField label="Admin Password" type="password" value={hospForm.password} onChange={(e) => setHospForm({ ...hospForm, password: e.target.value })} placeholder="Min 8 characters" />
+                  </div>
+                  <FormField label="Full Address" value={hospForm.address} onChange={(e) => setHospForm({ ...hospForm, address: e.target.value })} placeholder="Plot 10, Medical Enclave" />
+
+                  <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium mt-2">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {busy ? 'Submitting Registration...' : 'Request Hospital Registration'}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+
+          {/* 3. DOCTOR LOGIN & REGISTER */}
+          {activeRole === 'doctor' && (
+            <>
+              {authMode === 'login' ? (
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div className="rounded-xl bg-emerald-50/80 p-3 text-xs text-emerald-900 border border-emerald-100 mb-2">
+                    <strong>Hospital Verification:</strong> You must select your affiliated hospital. Doctor credentials will be rejected if the wrong hospital is selected.
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      1. Select Your Hospital <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      className="input w-full font-medium"
+                      value={selectedHospital}
+                      onChange={(e) => setSelectedHospital(e.target.value)}
+                    >
+                      <option value="">-- Choose your affiliated hospital --</option>
+                      {hospitals.map((h) => (
+                        <option key={h.hospital_id} value={h.hospital_id}>
+                          {h.name} ({h.city})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <FormField
+                    label="2. Doctor Email"
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="doctor@hospital.com"
+                  />
+                  <FormField
+                    label="3. Password"
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+
+                  <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {busy ? 'Verifying Hospital & Credentials...' : 'Sign in as Doctor'}
+                  </button>
+
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span>Demo: <strong className="text-slate-700">Dr. Rajesh Sharma (Apex)</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedHospital('H001');
+                        setLoginEmail('rajesh.sharma@hospital.com');
+                        setLoginPassword('Doctor@123');
+                      }}
+                      className="text-brand-600 hover:text-brand-700 font-semibold"
+                    >
+                      Auto-fill Dr. Sharma
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleRegisterDoctor} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Select Hospital to Join <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      className="input w-full font-medium"
+                      value={docForm.hospital_id}
+                      onChange={(e) => setDocForm({ ...docForm, hospital_id: e.target.value })}
+                    >
+                      <option value="">-- Choose Hospital (Max 10 Doctors per hospital) --</option>
+                      {hospitals.map((h) => (
+                        <option key={h.hospital_id} value={h.hospital_id}>
+                          {h.name} ({h.city})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <FormField label="Doctor Full Name" value={docForm.name} onChange={(e) => setDocForm({ ...docForm, name: e.target.value })} placeholder="Dr. Jane Doe" />
+                  
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Specialization</label>
+                      <select
+                        className="input w-full"
+                        value={docForm.specialization}
+                        onChange={(e) => setDocForm({ ...docForm, specialization: e.target.value })}
+                      >
+                        <option value="Cardiology">Cardiology</option>
+                        <option value="Neurology">Neurology</option>
+                        <option value="General Medicine">General Medicine</option>
+                        <option value="Orthopedics">Orthopedics</option>
+                        <option value="Pediatrics">Pediatrics</option>
+                        <option value="Dermatology">Dermatology</option>
+                        <option value="Oncology">Oncology</option>
+                      </select>
+                    </div>
+                    <FormField label="Phone" value={docForm.phone} onChange={(e) => setDocForm({ ...docForm, phone: e.target.value })} placeholder="+91 98765 00000" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <FormField label="Email" type="email" value={docForm.email} onChange={(e) => setDocForm({ ...docForm, email: e.target.value })} placeholder="doctor@hospital.com" />
+                    <FormField label="Password" type="password" value={docForm.password} onChange={(e) => setDocForm({ ...docForm, password: e.target.value })} placeholder="••••••••" />
+                  </div>
+
+                  <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium mt-2">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {busy ? 'Registering Doctor...' : 'Register as Doctor'}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+
+          {/* 4. PATIENT LOGIN & REGISTER */}
+          {activeRole === 'patient' && (
+            <>
+              {authMode === 'login' ? (
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <FormField
+                    label="Patient Email"
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="patient@example.com"
+                  />
+                  <FormField
+                    label="Password"
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+
+                  <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {busy ? 'Signing In...' : 'Sign in as Patient'}
+                  </button>
+
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                    <span>Demo Patient: <strong className="text-slate-700">rahul@patient.com</strong></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLoginEmail('rahul@patient.com');
+                        setLoginPassword('Patient@123');
+                      }}
+                      className="text-brand-600 hover:text-brand-700 font-semibold"
+                    >
+                      Auto-fill Rahul
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleRegisterPatient} className="space-y-3">
+                  <div className="rounded-xl bg-amber-50/80 p-3 text-xs text-amber-900 border border-amber-100 mb-1">
+                    <strong>Instant Patient Access:</strong> No waiting for approval. Register and book consultations or view your medical history immediately!
+                  </div>
+
+                  <FormField label="Full Name" value={patForm.name} onChange={(e) => setPatForm({ ...patForm, name: e.target.value })} placeholder="Full Name" />
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <FormField label="Age" type="number" min="0" max="120" value={patForm.age} onChange={(e) => setPatForm({ ...patForm, age: e.target.value })} />
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Gender</label>
+                      <select className="input w-full" value={patForm.gender} onChange={(e) => setPatForm({ ...patForm, gender: e.target.value })}>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Blood Group</label>
+                      <select className="input w-full" value={patForm.blood_group} onChange={(e) => setPatForm({ ...patForm, blood_group: e.target.value })}>
+                        {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <FormField label="Phone Number" value={patForm.phone} onChange={(e) => setPatForm({ ...patForm, phone: e.target.value })} placeholder="+91 98765 00000" />
+                    <FormField label="Email" type="email" value={patForm.email} onChange={(e) => setPatForm({ ...patForm, email: e.target.value })} placeholder="name@example.com" />
+                  </div>
+
+                  <FormField label="Create Password" type="password" value={patForm.password} onChange={(e) => setPatForm({ ...patForm, password: e.target.value })} placeholder="Min 8 characters" />
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Hospital</label>
+                    <select
+                      className="input w-full text-xs"
+                      value={patForm.hospital_id}
+                      onChange={(e) => setPatForm({ ...patForm, hospital_id: e.target.value })}
+                    >
+                      {hospitals.map((h) => (
+                        <option key={h.hospital_id} value={h.hospital_id}>
+                          {h.name} ({h.city})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium mt-2">
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {busy ? 'Creating Patient Account...' : 'Register & Enter Portal'}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Quick Visitor Actions (Appointments & Emergency Cases) */}
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+            <div>
+              <span className="inline-flex p-2 rounded-lg bg-red-100 text-red-600 mb-2">
+                <Siren className="h-5 w-5" />
+              </span>
+              <h3 className="text-sm font-bold text-slate-800">Emergency Queue</h3>
+              <p className="text-xs text-slate-500 mt-0.5">High-priority triage queue powered by Min-Heap</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveRole('patient');
+                setLoginEmail('rahul@patient.com');
+                setLoginPassword('Patient@123');
+              }}
+              className="mt-3 text-xs font-semibold text-red-600 hover:text-red-700 flex items-center gap-1"
+            >
+              Sign in to view Triage <ArrowRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+            <div>
+              <span className="inline-flex p-2 rounded-lg bg-blue-100 text-blue-600 mb-2">
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <h3 className="text-sm font-bold text-slate-800">Book Appointment</h3>
+              <p className="text-xs text-slate-500 mt-0.5">FIFO regular scheduling across 10 hospitals</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveRole('patient');
+                setAuthMode('register');
+              }}
+              className="mt-3 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+            >
+              Easy Patient Signup <ArrowRight className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

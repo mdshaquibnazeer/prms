@@ -9,7 +9,15 @@ function authenticate(req, res, next) {
   if (scheme !== 'Bearer' || !token) return next(new AppError(401, 'Please log in to continue.'));
   try {
     const payload = jwt.verify(token, env.jwtSecret);
-    req.user = { id: payload.id, name: payload.name, email: payload.email, role: payload.role };
+    req.user = {
+      id: payload.id,
+      name: payload.name,
+      email: payload.email,
+      role: payload.role,
+      hospital_id: payload.hospital_id || null,
+      doctor_id: payload.doctor_id || null,
+      patient_id: payload.patient_id || null,
+    };
     next();
   } catch (err) {
     next(new AppError(401, 'Your session has expired. Please log in again.'));

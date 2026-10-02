@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, CalendarDays, Siren, ClipboardList, Pill, Stethoscope, Network,
-  BarChart3, Settings, LogOut, Menu, X, HeartPulse,
+  BarChart3, Settings, LogOut, Menu, X, HeartPulse, Building2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { NAV_ITEMS } from '../utils/permissions';
 
-const ICONS = { LayoutDashboard, Users, CalendarDays, Siren, ClipboardList, Pill, Stethoscope, Network, BarChart3, Settings };
+const ICONS = { LayoutDashboard, Users, CalendarDays, Siren, ClipboardList, Pill, Stethoscope, Network, BarChart3, Settings, Building2 };
 
 function Brand({ compact }) {
   return (

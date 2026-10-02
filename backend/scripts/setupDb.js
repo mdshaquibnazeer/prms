@@ -12,10 +12,14 @@ const env = require('../src/config/env');
 const root = path.resolve(__dirname, '../../database');
 const read = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 
+const { todayStr } = require('../src/utils/dates');
+
+const isSsl = env.databaseUrl && (env.databaseUrl.includes('neon.tech') || env.databaseUrl.includes('sslmode=require'));
+
 async function ensureDatabase() {
   const url = new URL(env.databaseUrl);
   const dbName = decodeURIComponent(url.pathname.slice(1));
-  const probe = new Client({ connectionString: env.databaseUrl });
+  const probe = new Client({ connectionString: env.databaseUrl, ssl: isSsl ? { rejectUnauthorized: false } : undefined });
   try {
     await probe.connect();
     await probe.end();
@@ -23,9 +27,10 @@ async function ensureDatabase() {
   } catch (err) {
     if (err.code !== '3D000') throw err; // 3D000 = database does not exist
   }
+  if (isSsl) return; // cloud managed databases manage DB lifecycle via provider console
   console.log(`Database "${dbName}" does not exist - creating it...`);
   url.pathname = '/postgres';
-  const admin = new Client({ connectionString: url.toString() });
+  const admin = new Client({ connectionString: url.toString(), ssl: isSsl ? { rejectUnauthorized: false } : undefined });
   await admin.connect();
   await admin.query(`CREATE DATABASE "${dbName.replace(/"/g, '""')}"`);
   await admin.end();
@@ -34,13 +39,14 @@ async function ensureDatabase() {
 (async () => {
   try {
     await ensureDatabase();
-    const client = new Client({ connectionString: env.databaseUrl });
+    const client = new Client({ connectionString: env.databaseUrl, ssl: isSsl ? { rejectUnauthorized: false } : undefined });
     await client.connect();
     console.log('Running schema.sql ...');
     await client.query(read('schema.sql'));
     if (!process.argv.includes('--no-seed')) {
       console.log('Running seed.sql ...');
-      await client.query(read('seed.sql'));
+      const seedSql = read('seed.sql').replace(/CURRENT_DATE/g, `'${todayStr()}'::date`);
+      await client.query(seedSql);
     }
     const counts = await client.query(
       `SELECT (SELECT COUNT(*) FROM patients) AS patients, (SELECT COUNT(*) FROM doctors) AS doctors,
