@@ -178,7 +178,7 @@ async function registerPatient({ name, email, password, phone, age, gender, addr
     throw new AppError(409, 'An account with this phone number already exists.');
   }
 
-  const patient_id = await patientModel.nextId();
+  const patient_id = await patientService.nextId();
   const patient = await patientModel.create({
     patient_id,
     hospital_id: hospital_id || null,

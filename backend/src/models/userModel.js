@@ -21,19 +21,19 @@ exports.findByEmail = async (email) =>
   (await db.query(`${USER_SELECT} WHERE LOWER(COALESCE(u.email, '')) = LOWER($1)`, [email])).rows[0];
 
 exports.findByPhone = async (phone) => {
-  const clean = String(phone || '').replace(/[\s-+()]/g, '');
+  const clean = String(phone || '').replace(/\D/g, '');
   return (await db.query(`
     ${USER_SELECT}
     WHERE COALESCE(u.phone, '') = $1
        OR COALESCE(p.phone, '') = $1
-       OR REGEXP_REPLACE(COALESCE(u.phone, ''), '[\\s-+()]', '', 'g') = $2
-       OR REGEXP_REPLACE(COALESCE(p.phone, ''), '[\\s-+()]', '', 'g') = $2
+       OR REGEXP_REPLACE(COALESCE(u.phone, ''), '[^0-9]', '', 'g') = $2
+       OR REGEXP_REPLACE(COALESCE(p.phone, ''), '[^0-9]', '', 'g') = $2
   `, [phone, clean])).rows[0];
 };
 
 exports.findByEmailOrPhone = async (identifier) => {
   const trimmed = String(identifier || '').trim();
-  const cleanDigits = trimmed.replace(/[\s-+()]/g, '');
+  const cleanDigits = trimmed.replace(/\D/g, '');
   const res = await db.query(`
     ${USER_SELECT}
     WHERE LOWER(COALESCE(u.email, '')) = LOWER($1)
@@ -41,8 +41,8 @@ exports.findByEmailOrPhone = async (identifier) => {
        OR COALESCE(u.phone, '') = $1
        OR COALESCE(p.phone, '') = $1
        OR (LENGTH($2) >= 6 AND (
-            REGEXP_REPLACE(COALESCE(u.phone, ''), '[\\s-+()]', '', 'g') = $2
-         OR REGEXP_REPLACE(COALESCE(p.phone, ''), '[\\s-+()]', '', 'g') = $2
+            REGEXP_REPLACE(COALESCE(u.phone, ''), '[^0-9]', '', 'g') = $2
+         OR REGEXP_REPLACE(COALESCE(p.phone, ''), '[^0-9]', '', 'g') = $2
        ))
     LIMIT 1
   `, [trimmed, cleanDigits]);
