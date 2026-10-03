@@ -3,7 +3,7 @@ const db = require('../config/db');
 // Patient columns plus two values derived from appointments (used for sorting by Appointment Date / Priority).
 const ENRICHED_SELECT = `
   SELECT p.*,
-    COALESCE(h.name, 'Independent Care') AS hospital_name,
+    COALESCE(h.name, 'No Hospital') AS hospital_name,
     COALESCE(h.city, '-') AS hospital_city,
     (SELECT MIN(a.appointment_date) FROM appointments a
        WHERE a.patient_id = p.patient_id AND a.status IN ('Pending','Confirmed')
@@ -20,6 +20,32 @@ const ENRICHED_SELECT = `
 exports.findAllEnriched = async () => (await db.query(`${ENRICHED_SELECT} ORDER BY p.created_at, p.patient_id`)).rows;
 exports.findEnrichedById = async (id) => (await db.query(`${ENRICHED_SELECT} WHERE p.patient_id = $1`, [id])).rows[0];
 exports.exists = async (id) => (await db.query('SELECT 1 FROM patients WHERE patient_id = $1', [id])).rowCount > 0;
+
+exports.getPatientIdsForDoctor = async (doctorId) => {
+  const res = await db.query(
+    `SELECT DISTINCT patient_id FROM appointments WHERE doctor_id = $1
+     UNION
+     SELECT DISTINCT patient_id FROM medical_history WHERE doctor_id = $1`,
+    [doctorId]
+  );
+  return res.rows.map((r) => r.patient_id);
+};
+
+exports.isPatientLinkedToHospital = async (patientId, hospitalId) => {
+  const res = await db.query(
+    `SELECT 1 FROM patients WHERE patient_id = $1 AND hospital_id = $2
+     UNION
+     SELECT 1 FROM appointments a
+     JOIN doctors d ON d.doctor_id = a.doctor_id
+     WHERE a.patient_id = $1 AND d.hospital_id = $2
+     UNION
+     SELECT 1 FROM medical_history m
+     JOIN doctors d ON d.doctor_id = m.doctor_id
+     WHERE m.patient_id = $1 AND d.hospital_id = $2`,
+    [patientId, hospitalId]
+  );
+  return res.rowCount > 0;
+};
 
 exports.create = async (p) =>
   (await db.query(

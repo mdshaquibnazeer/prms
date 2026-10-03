@@ -94,6 +94,9 @@ export const patientsApi = {
   prescriptions: (id) => api.get(`/patients/${encodeURIComponent(id)}/prescriptions`),
   addPrescription: (id, r) => api.post(`/patients/${encodeURIComponent(id)}/prescriptions`, r),
   appointments: (id) => api.get(`/appointments${qs({ patient_id: id })}`),
+  notify: (id, data) => api.post(`/patients/${encodeURIComponent(id)}/notify`, data),
+  notifications: (id) => api.get(`/patients/${encodeURIComponent(id)}/notifications`),
+  markNotificationRead: (id) => api.put(`/notifications/${encodeURIComponent(id)}/read`),
 };
 export const historyApi = { remove: (id) => api.del(`/history/${id}`) };
 export const prescriptionsApi = { all: () => api.get('/prescriptions'), remove: (id) => api.del(`/prescriptions/${id}`) };

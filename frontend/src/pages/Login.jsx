@@ -24,13 +24,13 @@ export default function Login() {
   const [selectedHospital, setSelectedHospital] = useState('');
 
   // Hospital Registration State
-  const [hospForm, setHospForm] = useState({ name: '', email: '', phone: '', address: '', city: '', password: '' });
+  const [hospForm, setHospForm] = useState({ name: '', email: '', phone: '', address: '', city: '', password: '', confirmPassword: '' });
 
   // Doctor Registration State
-  const [docForm, setDocForm] = useState({ name: '', specialization: 'General Medicine', phone: '', email: '', password: '', hospital_id: '' });
+  const [docForm, setDocForm] = useState({ name: '', specialization: 'General Medicine', phone: '', email: '', password: '', confirmPassword: '', hospital_id: '' });
 
   // Patient Registration State
-  const [patForm, setPatForm] = useState({ name: '', age: 30, gender: 'Male', phone: '', email: '', blood_group: 'O+', password: '', hospital_id: '' });
+  const [patForm, setPatForm] = useState({ name: '', age: 30, gender: 'Male', phone: '', email: '', blood_group: 'O+', password: '', confirmPassword: '', hospital_id: '' });
 
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -99,6 +99,10 @@ export default function Login() {
       setError('Hospital name, email, and password are required.');
       return;
     }
+    if (hospForm.password !== hospForm.confirmPassword) {
+      setError('Passwords do not match. Please verify your confirm password.');
+      return;
+    }
     setBusy(true);
     try {
       const res = await authApi.registerHospital(hospForm);
@@ -119,6 +123,10 @@ export default function Login() {
     setSuccessMsg('');
     if (!docForm.name || !docForm.email || !docForm.password || !docForm.hospital_id) {
       setError('Please fill in all doctor details and choose a hospital.');
+      return;
+    }
+    if (docForm.password !== docForm.confirmPassword) {
+      setError('Passwords do not match. Please verify your confirm password.');
       return;
     }
     setBusy(true);
@@ -143,6 +151,10 @@ export default function Login() {
     }
     if (!patForm.email.trim() && !patForm.phone.trim()) {
       setError('Please provide either an Email address OR a Phone number.');
+      return;
+    }
+    if (patForm.password !== patForm.confirmPassword) {
+      setError('Passwords do not match. Please ensure both password fields match.');
       return;
     }
     setBusy(true);
@@ -362,8 +374,8 @@ export default function Login() {
                     <FormField label="Phone" value={hospForm.phone} onChange={(e) => setHospForm({ ...hospForm, phone: e.target.value })} placeholder="+91 98765 00000" />
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
-                    <FormField label="City" value={hospForm.city} onChange={(e) => setHospForm({ ...hospForm, city: e.target.value })} placeholder="e.g. Bengaluru" />
                     <FormField label="Admin Password" type="password" value={hospForm.password} onChange={(e) => setHospForm({ ...hospForm, password: e.target.value })} placeholder="Min 8 characters" />
+                    <FormField label="Confirm Password" type="password" value={hospForm.confirmPassword} onChange={(e) => setHospForm({ ...hospForm, confirmPassword: e.target.value })} placeholder="Re-enter password" />
                   </div>
                   <FormField label="Full Address" value={hospForm.address} onChange={(e) => setHospForm({ ...hospForm, address: e.target.value })} placeholder="Plot 10, Medical Enclave" />
 
@@ -465,9 +477,10 @@ export default function Login() {
                     <FormField label="Phone" value={docForm.phone} onChange={(e) => setDocForm({ ...docForm, phone: e.target.value })} placeholder="+91 98765 00000" />
                   </div>
 
+                  <FormField label="Email" type="email" value={docForm.email} onChange={(e) => setDocForm({ ...docForm, email: e.target.value })} placeholder="doctor@hospital.com" />
                   <div className="grid grid-cols-2 gap-2.5">
-                    <FormField label="Email" type="email" value={docForm.email} onChange={(e) => setDocForm({ ...docForm, email: e.target.value })} placeholder="doctor@hospital.com" />
-                    <FormField label="Password" type="password" value={docForm.password} onChange={(e) => setDocForm({ ...docForm, password: e.target.value })} placeholder="••••••••" />
+                    <FormField label="Password" type="password" value={docForm.password} onChange={(e) => setDocForm({ ...docForm, password: e.target.value })} placeholder="Min 8 characters" />
+                    <FormField label="Confirm Password" type="password" value={docForm.confirmPassword} onChange={(e) => setDocForm({ ...docForm, confirmPassword: e.target.value })} placeholder="Re-enter password" />
                   </div>
 
                   <button type="submit" disabled={busy} className="btn-primary w-full py-2.5 rounded-xl font-medium mt-2">
@@ -531,7 +544,10 @@ export default function Login() {
                     />
                   </div>
 
-                  <FormField label="Create Password *" type="password" value={patForm.password} onChange={(e) => setPatForm({ ...patForm, password: e.target.value })} placeholder="Min 8 characters" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <FormField label="Create Password *" type="password" value={patForm.password} onChange={(e) => setPatForm({ ...patForm, password: e.target.value })} placeholder="Min 8 characters" />
+                    <FormField label="Confirm Password *" type="password" value={patForm.confirmPassword} onChange={(e) => setPatForm({ ...patForm, confirmPassword: e.target.value })} placeholder="Re-enter password" />
+                  </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Preferred Primary Hospital (Optional)</label>

@@ -83,7 +83,11 @@ async function list(q = {}) {
   const search = String(q.search || '').trim();
 
   let rows = index.values();
-  const meta = { total: index.size, search: null, sort: null };
+  if (Array.isArray(q.allowedIds)) {
+    const allowedSet = new Set(q.allowedIds);
+    rows = rows.filter((p) => allowedSet.has(p.patient_id));
+  }
+  const meta = { total: rows.length, search: null, sort: null };
 
   if (search) {
     let algorithm = q.algorithm || 'auto';

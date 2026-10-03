@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarPlus, ClipboardPlus, Pencil, Pill, CalendarDays, Building2, CheckCircle2 } from 'lucide-react';
+import {
+  ArrowLeft, CalendarPlus, ClipboardPlus, Pencil, Pill, CalendarDays,
+  Building2, CheckCircle2, Bell, Send, ShieldCheck
+} from 'lucide-react';
 import PageHeader from '../components/PageHeader';
 import { AsyncBoundary, EmptyState, ErrorState, LoadingBlock } from '../components/Feedback';
 import { PriorityBadge, StatusBadge } from '../components/Badges';
@@ -39,12 +42,13 @@ export default function PatientDetails() {
   const { user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
-  const clinical = can(user.role, 'history.access');
+  const isAdmin = user?.role === 'admin';
+  const clinical = !isAdmin && can(user.role, 'history.access');
 
   const patient = useAsync(() => patientsApi.get(id), [id]);
-  const history = useAsync(() => (clinical ? patientsApi.history(id) : Promise.resolve(null)), [id]);
-  const rx = useAsync(() => (clinical ? patientsApi.prescriptions(id) : Promise.resolve(null)), [id]);
-  const appts = useAsync(() => patientsApi.appointments(id), [id]);
+  const history = useAsync(() => (clinical ? patientsApi.history(id) : Promise.resolve(null)), [id, clinical]);
+  const rx = useAsync(() => (clinical ? patientsApi.prescriptions(id) : Promise.resolve(null)), [id, clinical]);
+  const appts = useAsync(() => (!isAdmin ? patientsApi.appointments(id) : Promise.resolve({ data: [] })), [id, isAdmin]);
 
   const [modal, setModal] = useState(null); // 'appointment' | 'history' | 'rx'
   const [delVisit, setDelVisit] = useState(null);
@@ -54,6 +58,12 @@ export default function PatientDetails() {
   const [hospitalsList, setHospitalsList] = useState([]);
   const [targetHosp, setTargetHosp] = useState('');
   const [transferBusy, setTransferBusy] = useState(false);
+
+  // Hospital Send Notification Modal State
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifyMessage, setNotifyMessage] = useState('');
+  const [notifyBusy, setNotifyBusy] = useState(false);
 
   useEffect(() => {
     hospitalsApi.listPublic().then((res) => {
@@ -89,31 +99,73 @@ export default function PatientDetails() {
     }
   };
 
+  const handleSendNotification = async (e) => {
+    e.preventDefault();
+    if (!notifyTitle.trim() || !notifyMessage.trim()) {
+      toast.error('Please enter both title and message.');
+      return;
+    }
+    setNotifyBusy(true);
+    try {
+      await patientsApi.notify(p.patient_id, {
+        title: notifyTitle.trim(),
+        message: notifyMessage.trim(),
+      });
+      toast.success(`Notification delivered to ${p.name}!`);
+      setShowNotifyModal(false);
+      setNotifyTitle('');
+      setNotifyMessage('');
+    } catch (err) {
+      toast.error(err.message || 'Failed to send notification.');
+    } finally {
+      setNotifyBusy(false);
+    }
+  };
+
   const missingInPatient = [];
   if (!p.email) missingInPatient.push('Email');
   if (!p.phone) missingInPatient.push('Phone Number');
   if (!p.blood_group) missingInPatient.push('Blood Group');
   if (!p.address) missingInPatient.push('Address');
 
+  const hospitalDisplayName = p.hospital_name && p.hospital_name !== 'No Hospital' ? p.hospital_name : 'No Hospital';
+
   return (
     <>
-      <Link to="/patients" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline"><ArrowLeft className="h-4 w-4" aria-hidden="true" />All patients</Link>
-      <PageHeader title={p.name} subtitle={`Patient ${p.patient_id} · ${p.hospital_name || 'Network Hospital'}`}>
-        <button className="btn-secondary" onClick={() => setShowTransferModal(true)}>
-          <Building2 className="h-4 w-4 text-brand-600" aria-hidden="true" />Transfer Hospital
-        </button>
-        <button className="btn-secondary" onClick={() => navigate(`/patients/${p.patient_id}/edit`)}>
-          <Pencil className="h-4 w-4" aria-hidden="true" />Edit Patient
-        </button>
-        <button className="btn-secondary" onClick={() => setModal('appointment')}>
-          <CalendarPlus className="h-4 w-4" aria-hidden="true" />New Appointment
-        </button>
-        {clinical && <button className="btn-secondary" onClick={() => setModal('history')}><ClipboardPlus className="h-4 w-4" aria-hidden="true" />Add Medical History</button>}
-        {clinical && <button className="btn-secondary" onClick={() => setModal('rx')}><Pill className="h-4 w-4" aria-hidden="true" />Add Prescription</button>}
+      <Link to="/patients" className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-700 hover:underline">
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        All patients
+      </Link>
+      <PageHeader title={p.name} subtitle={`Patient ID: ${p.patient_id} · Hospital: ${hospitalDisplayName}`}>
+        {isAdmin ? (
+          <Link to="/patients" className="btn-secondary">
+            Back to Patients &amp; Tabs
+          </Link>
+        ) : (
+          <>
+            {user.role === 'hospital' && (
+              <button className="btn-primary" onClick={() => setShowNotifyModal(true)}>
+                <Bell className="h-4 w-4" aria-hidden="true" />
+                Send Notification
+              </button>
+            )}
+            <button className="btn-secondary" onClick={() => setShowTransferModal(true)}>
+              <Building2 className="h-4 w-4 text-brand-600" aria-hidden="true" />Transfer Hospital
+            </button>
+            <button className="btn-secondary" onClick={() => navigate(`/patients/${p.patient_id}/edit`)}>
+              <Pencil className="h-4 w-4" aria-hidden="true" />Edit Patient
+            </button>
+            <button className="btn-secondary" onClick={() => setModal('appointment')}>
+              <CalendarPlus className="h-4 w-4" aria-hidden="true" />New Appointment
+            </button>
+            {clinical && <button className="btn-secondary" onClick={() => setModal('history')}><ClipboardPlus className="h-4 w-4" aria-hidden="true" />Add Medical History</button>}
+            {clinical && <button className="btn-secondary" onClick={() => setModal('rx')}><Pill className="h-4 w-4" aria-hidden="true" />Add Prescription</button>}
+          </>
+        )}
       </PageHeader>
 
       <div className="space-y-5">
-        {missingInPatient.length > 0 && (
+        {missingInPatient.length > 0 && !isAdmin && (
           <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-3">
               <span className="relative flex h-3 w-3 shrink-0">
@@ -136,68 +188,133 @@ export default function PatientDetails() {
           </div>
         )}
 
+        {/* Patient Administrative Info Card */}
         <section className="card card-pad" aria-label="Patient details">
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <Field label="Patient ID" value={p.patient_id} />
             <Field label="Name" value={p.name} />
-            <Field label="Primary Hospital" value={p.hospital_name} />
-            <Field label="Age" value={`${p.age} years`} />
+            <Field label="Hospital Attached" value={hospitalDisplayName} />
+            <Field label="Phone" value={p.phone || 'No Phone Number'} />
+            <Field label="Email" value={p.email || 'No Email'} />
+            <Field label="Age" value={p.age ? `${p.age} years` : '-'} />
             <Field label="Gender" value={p.gender} />
             <Field label="Blood Group" value={p.blood_group} />
-            <Field label="Phone" value={p.phone} />
-            <Field label="Email" value={p.email} />
             <Field label="Address" value={p.address} />
           </dl>
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">
-            <span>Loaded with <b>{patient.data.meta.lookup.algorithm}</b> ({patient.data.meta.lookup.complexity}).</span>
-            <span className="font-semibold text-brand-700">Cross-Hospital History Sharing: Active</span>
+            <span>Lookup Algorithm: <b>{patient.data.meta.lookup.algorithm}</b> ({patient.data.meta.lookup.complexity}).</span>
+            <span className="font-semibold text-brand-700">Network Hospital Linkage: {hospitalDisplayName}</span>
           </div>
         </section>
 
-        {clinical && (
-          <Section title="Medical History" icon={ClipboardPlus}>
-            <AsyncBoundary state={history} loadingText="Loading medical history..." rows={3}>
-              {(r) => <HistoryTimeline visits={r.data.visits} canDelete onDelete={setDelVisit} />}
-            </AsyncBoundary>
-          </Section>
-        )}
-
-        <Section title="Appointments" icon={CalendarDays}>
-          <AsyncBoundary state={appts} loadingText="Loading appointments..." rows={2}>
-            {(r) => r.data.length === 0 ? <EmptyState icon={CalendarDays} title="No appointments yet." hint="Use New Appointment to book one." /> : (
-              <ul className="divide-y divide-line">
-                {[...r.data].reverse().map((a) => (
-                  <li key={a.appointment_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                    <div className="min-w-0">
-                      <p className="font-semibold">{formatDate(a.appointment_date)} at {a.appointment_time}</p>
-                      <p className="text-sm text-muted">{a.doctor_name}</p>
-                    </div>
-                    <div className="flex gap-1.5"><PriorityBadge priority={a.priority} /><StatusBadge status={a.status} /></div>
-                  </li>
-                ))}
-              </ul>
+        {/* ADMIN PRIVACY & CLINICAL RESTRICTION NOTICE */}
+        {isAdmin ? (
+          <div className="rounded-2xl bg-slate-50 border border-slate-200 p-5 text-slate-700 shadow-xs">
+            <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 text-sm">
+              <ShieldCheck className="h-5 w-5 text-brand-600" />
+              Executive Administrative View &middot; Medical History Confidentiality Policy
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              In accordance with hospital data governance and patient confidentiality regulations, executive administrators only possess access to administrative registration parameters (Patient ID, Name, Email, Phone Number, and Hospital Affiliation). Clinical medical history records, diagnostic entries, appointment queues, and prescriptions are strictly restricted to authorized treating doctors and affiliated hospital personnel.
+            </p>
+          </div>
+        ) : (
+          <>
+            {clinical && (
+              <Section title="Medical History" icon={ClipboardPlus}>
+                <AsyncBoundary state={history} loadingText="Loading medical history..." rows={3}>
+                  {(r) => <HistoryTimeline visits={r?.data?.visits || []} canDelete onDelete={setDelVisit} />}
+                </AsyncBoundary>
+              </Section>
             )}
-          </AsyncBoundary>
-        </Section>
 
-        {clinical && (
-          <Section title="Prescriptions" icon={Pill}>
-            <AsyncBoundary state={rx} loadingText="Loading prescriptions..." rows={2}>
-              {(r) => r.data.length === 0 ? <EmptyState icon={Pill} title="No prescriptions yet." /> : (
-                <ul className="divide-y divide-line">
-                  {r.data.map((x) => (
-                    <li key={x.prescription_id} className="py-3">
-                      <p className="font-semibold">{x.medicine} <span className="font-normal text-muted">- {x.dosage}</span></p>
-                      <p className="text-sm text-muted">{x.duration} &middot; {x.doctor_name} &middot; {formatDateTime(x.created_at)}</p>
-                      {x.instructions && <p className="mt-1 break-words text-sm">{x.instructions}</p>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </AsyncBoundary>
-          </Section>
+            <Section title="Appointments" icon={CalendarDays}>
+              <AsyncBoundary state={appts} loadingText="Loading appointments..." rows={2}>
+                {(r) => (!r?.data || r.data.length === 0) ? (
+                  <EmptyState icon={CalendarDays} title="No appointments yet." hint="Use New Appointment to book one." />
+                ) : (
+                  <ul className="divide-y divide-line">
+                    {[...r.data].reverse().map((a) => (
+                      <li key={a.appointment_id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                        <div className="min-w-0">
+                          <p className="font-semibold">{formatDate(a.appointment_date)} at {a.appointment_time}</p>
+                          <p className="text-sm text-muted">{a.doctor_name}</p>
+                        </div>
+                        <div className="flex gap-1.5"><PriorityBadge priority={a.priority} /><StatusBadge status={a.status} /></div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </AsyncBoundary>
+            </Section>
+
+            {clinical && (
+              <Section title="Prescriptions" icon={Pill}>
+                <AsyncBoundary state={rx} loadingText="Loading prescriptions..." rows={2}>
+                  {(r) => (!r?.data || r.data.length === 0) ? (
+                    <EmptyState icon={Pill} title="No prescriptions yet." />
+                  ) : (
+                    <ul className="divide-y divide-line">
+                      {r.data.map((x) => (
+                        <li key={x.prescription_id} className="py-3">
+                          <p className="font-semibold">{x.medicine} <span className="font-normal text-muted">- {x.dosage}</span></p>
+                          <p className="text-sm text-muted">{x.duration} &middot; {x.doctor_name} &middot; {formatDateTime(x.created_at)}</p>
+                          {x.instructions && <p className="mt-1 break-words text-sm">{x.instructions}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </AsyncBoundary>
+              </Section>
+            )}
+          </>
         )}
       </div>
+
+      {/* HOSPITAL NOTIFICATION MODAL */}
+      {showNotifyModal && (
+        <Modal
+          title={`Send Notification to ${p.name}`}
+          onClose={() => setShowNotifyModal(false)}
+          footer={
+            <>
+              <button type="button" className="btn-secondary" onClick={() => setShowNotifyModal(false)}>Cancel</button>
+              <button type="submit" form="notify-form" className="btn-primary" disabled={notifyBusy}>
+                {notifyBusy ? 'Delivering...' : 'Send Notification'}
+              </button>
+            </>
+          }
+        >
+          <form id="notify-form" onSubmit={handleSendNotification} className="space-y-4">
+            <div className="rounded-xl bg-blue-50 border border-blue-100 p-3 text-xs text-blue-900">
+              This message will be instantly delivered to <strong>{p.name}</strong>’s patient portal dashboard.
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Notification Subject / Title</label>
+              <input
+                type="text"
+                className="input w-full"
+                placeholder="e.g. Follow-up Checkup Scheduled"
+                value={notifyTitle}
+                onChange={(e) => setNotifyTitle(e.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Message Content</label>
+              <textarea
+                className="input w-full min-h-[100px]"
+                placeholder="Write your hospital announcement, instruction, or reminder for the patient..."
+                value={notifyMessage}
+                onChange={(e) => setNotifyMessage(e.target.value)}
+                required
+              ></textarea>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* HOSPITAL TRANSFER MODAL */}
       {showTransferModal && (

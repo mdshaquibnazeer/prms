@@ -64,15 +64,18 @@ router.post('/patients', authorize(...STAFF), patients.create);
 router.put('/patients/:id', authorize(...STAFF), patients.update);
 router.put('/patients/:id/transfer', authorize(...ALL), patients.transferHospital);
 router.delete('/patients/:id', authorize('admin', 'hospital'), patients.remove);
+router.post('/patients/:id/notify', authorize('hospital', 'admin'), patients.notifyPatient);
+router.get('/patients/:id/notifications', authorize(...ALL), patients.getNotifications);
+router.put('/notifications/:notificationId/read', authorize(...ALL), patients.markNotificationRead);
 
-// ---- Medical history ----
-router.get('/patients/:id/history', authorize(...ALL), records.getHistory);
+// ---- Medical history (Clinical Only - Admin Excluded) ----
+router.get('/patients/:id/history', authorize('hospital', 'doctor', 'patient'), records.getHistory);
 router.post('/patients/:id/history', authorize(...CLINICAL), records.addHistory);
 router.delete('/history/:id', authorize(...CLINICAL), records.deleteHistory);
 
-// ---- Prescriptions ----
-router.get('/prescriptions', authorize(...ALL), records.listAllPrescriptions);
-router.get('/patients/:id/prescriptions', authorize(...ALL), records.getPrescriptions);
+// ---- Prescriptions (Clinical Only - Admin Excluded) ----
+router.get('/prescriptions', authorize('hospital', 'doctor', 'patient'), records.listAllPrescriptions);
+router.get('/patients/:id/prescriptions', authorize('hospital', 'doctor', 'patient'), records.getPrescriptions);
 router.post('/patients/:id/prescriptions', authorize(...CLINICAL), records.addPrescription);
 router.delete('/prescriptions/:id', authorize(...CLINICAL), records.deletePrescription);
 
